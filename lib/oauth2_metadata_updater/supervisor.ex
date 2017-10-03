@@ -8,18 +8,30 @@ defmodule Oauth2MetadataUpdater.Supervisor do
   end
 
   def init(:ok) do
-    refresh_interval = Application.get_env(:oauth2_metadata_updater, :refresh_interval)
-    targets = Application.get_env(:oauth2_metadata_updater, :targets)
+    issuers = Application.get_env(:oauth2_metadata_updater, :issuers)
 
     children =
       [worker(Oauth2MetadataUpdater.Metadata, [])] ++
-      Enum.map(targets, fn({name, opts}) ->
+      [worker(Oauth2MetadataUpdater.Jwks, [])] ++
+      Enum.map(issuers, fn({issuer, opts}) ->
         worker(Oauth2MetadataUpdater.Updater,
-               [[name: name, target: opts[:url], refresh_interval: refresh_interval]],
-               id: name)
+               [Keyword.put(init_properties(opts), :issuer, issuer)],
+               id: issuer)
       end)
 
     Supervisor.init(children, strategy: :one_for_one)
+  end
+
+  defp init_properties(issuer_config) do
+    defaults = [
+      refresh_interval: 60*60,
+      well_known_path: "/.well-known/openid-configuration",
+      resolve_jwks: true,
+      allow_forced_refresh: true,
+      forced_refresh_min_interval: 30
+    ]
+
+    Keyword.merge(defaults, issuer_config)
   end
 end
 

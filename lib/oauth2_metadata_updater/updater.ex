@@ -4,23 +4,16 @@ defmodule Oauth2MetadataUpdater.Updater do
   require Logger
 
   def start_link(opts) do
-    if check_provider_url(opts[:target]) do
-      GenServer.start_link(__MODULE__,
-                           [
-                             provider: opts[:name],
-                             target: opts[:target],
-                             refresh_interval: opts[:refresh_interval]
-                           ],
-                           [name: opts[:name]])
+    if check_issuer_url(opts[:issuer]) do
+      GenServer.start_link(__MODULE__, opts, [name: String.to_atom(opts[:issuer])])
     else
-      Logger.error "#{__MODULE__}: invalid URL for provider #{opts[:name]} (ensure using https scheme)"
+      Logger.error "#{__MODULE__}: invalid URL for issuer #{opts[:issuer]} (ensure using https scheme)"
       :ignore
     end
   end
 
   def init(state) do
-    update_metadata(state[:provider], state[:target], state[:resolve_jwks])
-    schedule(state[:refresh_interval])
+    send(self(), :update_metadata)
     {:ok, state}
   end
 
@@ -29,49 +22,59 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   def handle_info(:update_metadata, state) do
-    update_metadata(state[:provider], state[:target], state[:resolve_jwks])
+    update_metadata(state)
     schedule(state[:refresh_interval])
     {:noreply, state}
   end
 
-  def update_metadata(provider, url, resolve_jwks) do
+  def update_metadata(state) do
+    request_and_process_metadata(state)
 
-    request_and_process_metadata(provider, url)
-    
-    if resolve_jwks do
-      request_and_process_jwks(provider)
+    if state[:resolve_jwks] do
+      request_and_process_jwks(state)
     end
   end
 
-  defp check_provider_url(url) do
+  defp check_issuer_url(url) do
     case URI.parse(url) do
       %URI{scheme: "https"} -> true
       _ -> false
     end
   end
 
-  defp request_and_process_metadata(provider, url) do
-    with {:ok, response} <- HTTPoison.get(url),
+  defp request_and_process_metadata(state) do
+    with {:ok, response} <- HTTPoison.get(state[:issuer] <> state[:well_known_path]),
       {:ok, json} <- Poison.decode(response.body),
-      {:ok, json} <- url_issuer_match?(url, json)
+      {:ok, json} <- url_issuer_match?(state, json)
     do
-      Oauth2MetadataUpdater.Metadata.update_metadata(provider, json)
-      Logger.info("#{__MODULE__}: OAuth2 metadata updated for provider #{provider}")
+      Oauth2MetadataUpdater.Metadata.update_metadata(state[:issuer], json)
+      Logger.info("#{__MODULE__}: OAuth2 metadata updated for issuer #{state[:issuer]}")
     else
-      {:error, reason} -> Logger.error("#{__MODULE__}: could not retrieve or parse result for provider #{provider} (#{reason})")
+      {:error, reason} -> Logger.error("#{__MODULE__}: could not retrieve or parse result for issuer #{state[:issuer]}")
     end
   end
 
-  defp url_issuer_match?(url, json) do
-    if url == to_string(json["issuer"]) <> "/.well-known/openid-configuration" do
+  defp url_issuer_match?(state, json) do
+    if state[:issuer] == to_string(json["issuer"]) do
       {:ok, json}
     else
-      {:error, "issuer and provider URI do not match"}
+      {:error, "issuer advertised does not match its own URI"}
     end
   end
 
-  defp request_and_process_jwks(provider) do
-    :ok
+  defp request_and_process_jwks(state) do
+    case Oauth2MetadataUpdater.Metadata.get_claim(state[:issuer], "jwks_uri") do
+      nil -> Logger.warn "#{__MODULE__}: no jwks URI for issuer #{state[:issuer]}"
+      jwks_uri ->
+        with {:ok, response} <- HTTPoison.get(jwks_uri),
+          {:ok, json} <- Poison.decode(response.body)
+        do
+          Oauth2MetadataUpdater.Jwks.update_jwks(state[:issuer], json)
+          Logger.info("#{__MODULE__}: OAuth2 jwks updated for issuer #{state[:issuer]}")
+        else
+          {:error, reason} -> Logger.error("#{__MODULE__}: could not retrieve or parse jwks URI for issuer #{state[:issuer]}")
+        end
+    end
   end
 
 end
