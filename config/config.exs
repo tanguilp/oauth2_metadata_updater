@@ -21,6 +21,16 @@ use Mix.Config
 #     config :logger, level: :info
 #
 
+config :oauth2_metadata_updater,
+  issuers:
+  %{
+    "https://accounts.google.com" => [],
+    "https://login.salesforce.com" => [],
+    "https://login.windows.net/common" => [],
+    "https://auth.globus.org" => [],
+    "https://auth.login.yahoo.co.jp/yconnect/v2" => []
+  }
+
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
 # by uncommenting the line below and defining dev.exs, test.exs and such.

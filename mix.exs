@@ -15,15 +15,15 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Oauth2MetadataUpdater.Application, []}
+      mod: {Oauth2MetadataUpdater, []}
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
+      {:httpoison, "~> 0.13"},
+      {:poison, "~> 3.1"}
     ]
   end
 end
