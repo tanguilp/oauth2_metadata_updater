@@ -27,7 +27,6 @@ defmodule Oauth2MetadataUpdater.Supervisor do
       refresh_interval: 60*60,
       well_known_path: "/.well-known/openid-configuration",
       resolve_jwks: true,
-      allow_forced_refresh: true,
       forced_refresh_min_interval: 30
     ]
 
