@@ -24,10 +24,10 @@ use Mix.Config
 config :oauth2_metadata_updater,
   issuers:
   %{
-    "https://accounts.google.com" => [],
+    "https://accounts.google.com" => [forced_refresh_min_interval: 5],
     "https://login.salesforce.com" => [],
     "https://login.windows.net/common" => [],
-    "https://auth.globus.org" => [],
+    "https://auth.globus.org" => [refresh_interval: 60*12, resolve_jwks: false],
     "https://auth.login.yahoo.co.jp/yconnect/v2" => []
   }
 

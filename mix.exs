@@ -7,7 +7,11 @@ defmodule Oauth2MetadataUpdater.Mixfile do
       version: "0.1.0",
       elixir: "~> 1.5",
       start_permanent: Mix.env == :prod,
-      deps: deps()
+      deps: deps(),
+
+      # Docs
+      source_url: "https://github.com/sergeypopol/oauth2_metadata_updater",
+      docs: [extras: ["README.md"]]
     ]
   end
 
@@ -22,6 +26,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:httpoison, "~> 0.13"},
       {:poison, "~> 3.1"}
     ]
