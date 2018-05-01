@@ -3,126 +3,247 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   require Logger
 
+  # client API
   def start_link(opts) do
-    if check_issuer_url(opts[:issuer]) do
-      GenServer.start_link(__MODULE__,
-                           opts,
-                           [name: String.to_atom("Oauth2MetadataUpdater-" <> opts[:issuer])])
-    else
-      Logger.error "#{__MODULE__}: invalid URL for issuer #{opts[:issuer]} (ensure using https scheme)"
-      :ignore
+    GenServer.start_link(__MODULE__, opts, name: :oauth2_metadata_updater)
+  end
+
+  def get_claim(issuer, claim) do
+    update_metadata(issuer)
+
+    [{_issuer, claims, _jwks, _last_update}] = :ets.lookup(:oauth2_metadata, issuer)
+
+    claims[claim]
+  end
+
+  def get_all_claims(issuer) do
+    update_metadata(issuer)
+
+    [{_issuer, claims, _jwks, _last_update}] = :ets.lookup(:oauth2_metadata, issuer)
+
+    claims
+  end
+
+  def get_jwks(issuer) do
+    update_metadata(issuer)
+
+    [{_issuer, _claims, jwks, _last_update}] = :ets.lookup(:oauth2_metadata, issuer)
+
+    jwks
+  end
+
+  defp update_metadata(issuer) do
+    case :ets.lookup(:oauth2_metadata, issuer) do
+      [] -> GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer})
+      [{_issuer, _claims, _jwks, last_update}] ->
+        if System.system_time(:second) - last_update > 60 do
+          GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer})
+        end
     end
   end
 
+  # server callbacks
+
   def init(state) do
-    send(self(), :refresh)
-    state = Keyword.put(state, :last_refresh_time, 0)
+    :ets.new(:oauth2_metadata, [:named_table, :set, :protected, read_concurrency: true])
+
     {:ok, state}
   end
 
-  def handle_call(:update_metadata, _from, state) do
-    {state, updated} =
-      if state[:last_refresh_time] + state[:forced_refresh_min_interval] < System.system_time(:second) do
-        if state[:timer_ref] != nil do
-          Process.cancel_timer(state[:timer_ref])
-        end
+  def handle_call({:update_metadata, issuer}, _from, state) do
+    claims = request_and_process_metadata(issuer)
 
-        update_metadata(state)
-
-        state = Keyword.put(state, :last_refresh_time, System.system_time(:second))
-
-        {state, :updated}
+    jwks =
+      if claims != nil and state[:resolve_jwks] do
+        request_and_process_jwks(issuer, claims["jwks_uri"])
       else
-        {state, :not_updated}
+        nil
       end
 
-    {:reply, {:ok, updated}, state}
+    :ets.insert(:oauth2_metadata, {issuer, claims, jwks, System.system_time(:second)})
+
+    {:reply, :updated, state}
   end
 
-  def handle_info(:refresh, state) do
-    Task.start_link(__MODULE__, :update_metadata, [state])
-
-    ref = Process.send_after(self(), :refresh, state[:refresh_interval] * 1000)
-
-    state = state
-    |> Keyword.put(:last_refresh_time, System.system_time(:second))
-    |> Keyword.put(:timer_ref, ref)
-
-    {:noreply, state}
-  end
-
-  def update_metadata(state) do
-    request_and_process_metadata(state)
-
-    if state[:resolve_jwks] do
-      request_and_process_jwks(state)
-    end
-  end
-
-  defp check_issuer_url(url) do
-    case URI.parse(url) do
-      %URI{scheme: "https"} -> true
-      _ -> false
-    end
-  end
-
-  defp request_and_process_metadata(state) do
+  defp request_and_process_metadata(issuer) do
     #If the issuer identifier value contains a path component, any
     #terminating "/" MUST be removed before appending "/.well-known/" and
     #the well-known URI path suffix.
+    issuer_uri = URI.parse(issuer)
 
-    with {:ok, %HTTPoison.Response{body: body, status_code: 200}} <- HTTPoison.get(String.trim_trailing(state[:issuer], "/") <> state[:well_known_path]),
-      # A successful response MUST use the 200 OK HTTP
-      # status code and return a JSON object using the "application/json"
-      # content type that contains a set of claims as its members that are a
-      # subset of the metadata values defined in Section 2.  Other claims MAY
-      # also be returned.
-      {:ok, json} <- Poison.decode(body),
-      {:ok, json} <- url_issuer_match?(state, json),
-      {:ok, json} <- check_required_claims(json)
+    path =
+      issuer_uri.path
+      |> to_string()
+      |> String.trim_trailing("/")
+
+    metadata_uri = %{issuer_uri | path: "/.well-known/openid-configuration" <> path}
+
+    with :ok <- https_scheme?(metadata_uri),
+      {:ok, %HTTPoison.Response{body: body, status_code: 200}} <- HTTPoison.get(URI.to_string(metadata_uri)),
+      {:ok, claims} <- Poison.decode(body),
+      claims <- set_default_values(claims),
+      :ok <- issuer_valid?(issuer, claims),
+      :ok <- has_authorization_endpoint?(claims),
+      :ok <- has_token_endpoint?(claims),
+      :ok <- jwks_uri_valid?(claims),
+      :ok <- has_response_types_supported?(claims),
+      :ok <- has_token_endpoint_auth_signing_alg_values_supported?(claims),
+      :ok <- has_revocation_endpoint_auth_signing_alg_values_supported?(claims),
+      :ok <- has_introspection_endpoint_auth_signing_alg_values_supported?(claims),
+      claims
     do
-      Oauth2MetadataUpdater.Metadata.update_metadata(state[:issuer], json)
-      Logger.info("#{__MODULE__}: OAuth2 metadata updated for issuer #{state[:issuer]}")
+      Logger.info("#{__MODULE__}: OAuth2 metadata updated for issuer #{issuer}")
+
+      claims
     else
-      {:error, %HTTPoison.Error{reason: reason}} -> Logger.error("#{__MODULE__}: could not retrieve or parse result for issuer #{state[:issuer]} (#{reason})")
-      {:error, reason} -> Logger.error("#{__MODULE__}: could not retrieve or parse result for issuer #{state[:issuer]} (#{reason})")
+      {:ok, %HTTPoison.Response{status_code: status_code}} ->
+        Logger.error("#{__MODULE__}: invalid HTTP status code for issuer #{issuer} (HTTP code: #{status_code})")
+        nil
+      {:error, %HTTPoison.Error{} = error} ->
+        Logger.error("#{__MODULE__}: could not retrieve or parse result for issuer #{issuer} (reason: #{HTTPoison.Error.message(error)})")
+        nil
+      {:error, reason} when is_binary(reason) ->
+        Logger.error("#{__MODULE__}: could not retrieve or parse result for issuer #{issuer} (reason: #{reason})")
+        nil
+      _ ->
+        Logger.error("#{__MODULE__}: could not retrieve or parse result for issuer #{issuer} (unknown reason)")
+        nil
     end
   end
 
-  defp url_issuer_match?(state, json) do
-    if state[:issuer] == to_string(json["issuer"]) do
-      {:ok, json}
+  defp https_scheme?(%URI{scheme: "https"}), do: :ok
+  defp https_scheme?(_), do: {:error, "URI scheme is not https"}
+
+  defp set_default_values(claims) do
+    claims
+    |> Map.put_new("response_modes_supported", ["query","fragment"])
+    |> Map.put_new("grant_types_supported", ["authorization_code", "implicit"])
+    |> Map.put_new("token_endpoint_auth_methods_supported", ["client_secret_basic"])
+    |> Map.put_new("revocation_endpoint_auth_methods_supported", ["client_secret_basic"])
+  end
+
+  defp issuer_valid?(issuer, claims) do
+    issuer_claim_uri = URI.parse(to_string(claims["issuer"]))
+
+    if issuer == claims["issuer"] and issuer_claim_uri.query == nil and issuer_claim_uri.fragment == nil do
+      :ok
     else
-      {:error, "issuer advertised does not match its own URI"}
+      {:error, "incorrect issuer value in claims"}
     end
   end
 
-  defp check_required_claims(json) do
-    if Map.has_key?(json, "issuer") and
-       Map.has_key?(json, "authorization_endpoint") and
-       Map.has_key?(json, "response_types_supported") and
-       (Map.has_key?(json, "token_endpoint") or ["token"] == json["response_types_supported"]) do
-      {:ok, json}
+  defp has_authorization_endpoint?(claims) do
+    if Map.has_key?(claims, "authorization_endpoint") or
+       (
+         "authorization_code" not in claims["grant_types_supported"] and
+         "implicit" not in claims["grant_types_supported"]
+       ) do
+      :ok
     else
-      {:error, "missing claim in issuer JSON response"}
+      {:error, "Missing authorization_endpoint claim"}
     end
   end
 
-  defp request_and_process_jwks(state) do
-    case Oauth2MetadataUpdater.Metadata.get_claim(state[:issuer], "jwks_uri") do
-      nil -> Logger.warn "#{__MODULE__}: no jwks URI for issuer #{state[:issuer]}"
-      jwks_uri ->
-        with {:ok, response} <- HTTPoison.get(jwks_uri),
-          {:ok, json} <- Poison.decode(response.body)
-        do
-          Oauth2MetadataUpdater.Jwks.update_jwks(state[:issuer], json)
-          Logger.info("#{__MODULE__}: OAuth2 jwks updated for issuer #{state[:issuer]}")
-        else
-          {:error, %HTTPoison.Error{reason: reason}} ->
-            Logger.error("#{__MODULE__}: could not retrieve or parse jwks URI for issuer #{state[:issuer]} (#{reason})")
-          {:error, reason} ->
-            Logger.error("#{__MODULE__}: could not retrieve or parse jwks URI for issuer #{state[:issuer]} (#{reason})")
-        end
+  defp has_token_endpoint?(claims) do
+    if Map.has_key?(claims, "token_endpoint") or ["token"] == claims["response_types_supported"] do
+      :ok
+    else
+      {:error, "Missing token_endpoint claim"}
+    end
+  end
+
+  defp jwks_uri_valid?(%{} = claims) do
+    if Map.has_key?(claims, "jwks_uri") do
+      case URI.parse(to_string(claims["jwks_uri"])) do
+        %URI{scheme: "https"} -> :ok
+        _ -> {:error, "JWKS URI does not use https scheme"}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp has_response_types_supported?(claims) do
+    if is_list(claims["response_types_supported"]) do
+      :ok
+    else
+      {:error, "Missing response_types_supported claim"}
+    end
+  end
+
+  defp has_token_endpoint_auth_signing_alg_values_supported?(claims) do
+    if "private_key_jwt" in claims["token_endpoint_auth_methods_supported"] or
+       "client_secret_jwt" in claims["token_endpoint_auth_methods_supported"]
+    do
+      if is_list(claims["token_endpoint_auth_signing_alg_values_supported"]) and
+         "none" not in claims["token_endpoint_auth_signing_alg_values_supported"]
+      do
+        :ok
+      else
+        {:error, "Missing token_endpoint_auth_signing_alg_values_supported claim or forbidden \"none\" value"}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp has_revocation_endpoint_auth_signing_alg_values_supported?(claims) do
+    if "private_key_jwt" in claims["revocation_endpoint_auth_methods_supported"] or
+       "client_secret_jwt" in claims["revocation_endpoint_auth_methods_supported"]
+    do
+      if is_list(claims["revocation_endpoint_auth_signing_alg_values_supported"]) and
+         "none" not in claims["revocation_endpoint_auth_signing_alg_values_supported"]
+      do
+        :ok
+      else
+        {:error, "Missing revocation_endpoint_auth_signing_alg_values_supported claim"}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp has_introspection_endpoint_auth_signing_alg_values_supported?(claims) do
+    if is_list(claims["introspection_endpoint_auth_methods_supported"]) and
+       (
+        "private_key_jwt" in claims["introspection_endpoint_auth_methods_supported"] or
+        "client_secret_jwt" in claims["introspection_endpoint_auth_methods_supported"]
+       )
+    do
+      if is_list(claims["introspection_endpoint_auth_signing_alg_values_supported"]) and
+         "none" not in claims["introspection_endpoint_auth_signing_alg_values_supported"]
+      do
+        :ok
+      else
+        {:error, "Missing introspection_endpoint_auth_signing_alg_values_supported claim"}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp request_and_process_jwks(issuer, nil) do
+    Logger.warn("#{__MODULE__}: no jwks URI for issuer #{issuer}")
+    nil
+  end
+
+  defp request_and_process_jwks(issuer, jwks_uri) do
+    with {:ok, response} <- HTTPoison.get(jwks_uri),
+         {:ok, jwks} <- Poison.decode(response.body)
+    do
+      Logger.info("#{__MODULE__}: OAuth2 jwks updated for issuer #{issuer}")
+
+      jwks
+    else
+      {:error, %HTTPoison.Error{} = error} ->
+        Logger.error("#{__MODULE__}: could not retrieve or parse jwks URI for issuer #{issuer} (reason: #{HTTPoison.Error.message(error)})")
+        nil
+      {:error, reason} when is_binary(reason) ->
+        Logger.error("#{__MODULE__}: could not retrieve or parse jwks URI for issuer #{issuer} (reason: #{reason})")
+        nil
+      _ ->
+        Logger.error("#{__MODULE__}: could not retrieve or parse jwks URI for issuer #{issuer} (unknown reason)")
+        nil
     end
   end
 

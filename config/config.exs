@@ -22,14 +22,8 @@ use Mix.Config
 #
 
 config :oauth2_metadata_updater,
-  issuers:
-  %{
-    "https://accounts.google.com" => [forced_refresh_min_interval: 5],
-    "https://login.salesforce.com" => [],
-    "https://login.windows.net/common" => [],
-    "https://auth.globus.org" => [refresh_interval: 60*12, resolve_jwks: false],
-    "https://auth.login.yahoo.co.jp/yconnect/v2" => []
-  }
+  refresh_interval: 3600, # seconds
+  resolve_jwks: true
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment

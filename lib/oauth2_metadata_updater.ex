@@ -11,23 +11,18 @@ defmodule Oauth2MetadataUpdater do
   """
   use Application
 
+  @default_options [
+    refresh_interval: 3600,
+    resolve_jwks: true
+  ]
+
   def start(_type, _args) do
-    Oauth2MetadataUpdater.Supervisor.start_link(name: Oauth2MetadataUpdater.Supervisor)
+    Oauth2MetadataUpdater.Updater.start_link(
+      Keyword.merge(@default_options, Application.get_all_env(:oauth2_metadata_updater))
+    )
   end
 
-  def get_claim(issuer, claim) do
-    Oauth2MetadataUpdater.Metadata.get_claim(issuer, claim)
-  end
-
-  def get_all_claims(issuer) do
-    Oauth2MetadataUpdater.Metadata.get_claim(issuer)
-  end
-
-  def get_jwks(issuer) do
-    Oauth2MetadataUpdater.Jwks.get_jwks(issuer)
-  end
-
-  def update_metadata(issuer) do
-    GenServer.call(String.to_atom("Oauth2MetadataUpdater-" <> issuer), :update_metadata)
-  end
+  defdelegate get_claim(issuer, claim), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_all_claims(issuer), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_jwks(issuer), to: Oauth2MetadataUpdater.Updater
 end
