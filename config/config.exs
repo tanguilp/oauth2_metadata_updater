@@ -23,7 +23,8 @@ use Mix.Config
 
 config :oauth2_metadata_updater,
   refresh_interval: 3600, # seconds
-  resolve_jwks: true
+  resolve_jwks: true,
+  min_refresh_interval: 30
 
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment

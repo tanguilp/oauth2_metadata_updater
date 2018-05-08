@@ -11,18 +11,16 @@ defmodule Oauth2MetadataUpdater do
   """
   use Application
 
-  @default_options [
-    refresh_interval: 3600,
-    resolve_jwks: true
-  ]
-
   def start(_type, _args) do
-    Oauth2MetadataUpdater.Updater.start_link(
-      Keyword.merge(@default_options, Application.get_all_env(:oauth2_metadata_updater))
-    )
+    import Supervisor.Spec
+
+    children = [worker(Oauth2MetadataUpdater.Updater, [])]
+
+    {:ok, _} =
+      Supervisor.start_link(children, strategy: :one_for_one, name: :oauth2_metadata_updater_sup)
   end
 
-  defdelegate get_claim(issuer, claim), to: Oauth2MetadataUpdater.Updater
-  defdelegate get_all_claims(issuer), to: Oauth2MetadataUpdater.Updater
-  defdelegate get_jwks(issuer), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_claim(issuer, claim, opts \\ []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_all_claims(issuer, options \\ []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_jwks(issuer, options \\ []), to: Oauth2MetadataUpdater.Updater
 end

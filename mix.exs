@@ -6,7 +6,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
       app: :oauth2_metadata_updater,
       version: "0.1.0",
       elixir: "~> 1.5",
-      start_permanent: Mix.env == :prod,
+      start_permanent: Mix.env() == :prod,
       deps: deps(),
 
       # Docs
