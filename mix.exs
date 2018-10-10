@@ -26,9 +26,10 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, "~> 0.16", only: :dev, runtime: false},
       {:httpoison, "~> 0.13"},
-      {:poison, "~> 3.1"}
+      {:poison, "~> 3.1"},
+      {:bypass, github: "tanguilp/bypass-1", only: :test},
+      {:ex_doc, "~> 0.16", only: :dev, runtime: false}
     ]
   end
 end

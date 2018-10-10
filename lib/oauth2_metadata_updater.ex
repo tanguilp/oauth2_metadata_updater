@@ -21,6 +21,7 @@ defmodule Oauth2MetadataUpdater do
   end
 
   defdelegate get_claim(issuer, claim, opts \\ []), to: Oauth2MetadataUpdater.Updater
-  defdelegate get_all_claims(issuer, options \\ []), to: Oauth2MetadataUpdater.Updater
-  defdelegate get_jwks(issuer, options \\ []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_all_claims(issuer, opts \\  []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_jwks(issuer, opts \\ []), to: Oauth2MetadataUpdater.Updater
+
 end
