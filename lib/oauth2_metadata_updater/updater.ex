@@ -92,37 +92,48 @@ defmodule Oauth2MetadataUpdater.Updater do
 
     :ets.new(:oauth2_metadata, [:set, :named_table, :protected, read_concurrency: true])
 
+    unless is_nil(Application.get_env(:oauth2_metadata_updater, :preload)) do
+      Enum.each(Application.get_env(:oauth2_metadata_updater, :preload),
+                fn {issuer, opts} -> GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts}) end)
+    end
+
     {:ok, %{}}
   end
 
   def handle_call({:update_metadata, issuer, opts}, _from, state) do
-    case request_and_process_metadata(issuer, opts) do
-      claims when is_map(claims) ->
+    # the metadata may have already been updated but the HTTP request
+    # was in-flight and that method called meanwhile
+    if metadata_up_to_date?(issuer, opts) do
+      {:reply, :ok, state}
+    else
+      case request_and_process_metadata(issuer, opts) do
+        claims when is_map(claims) ->
 
-        jwks =
-          if opts[:resolve_jwks] == true do
-            request_and_process_jwks(issuer, claims["jwks_uri"], opts)
-          else
-            nil
-          end
+          jwks =
+            if opts[:resolve_jwks] == true do
+              request_and_process_jwks(issuer, claims["jwks_uri"], opts)
+            else
+              nil
+            end
 
-        :ets.insert(:oauth2_metadata, {issuer, now(), claims, jwks})
+          :ets.insert(:oauth2_metadata, {issuer, now(), claims, jwks})
 
-        {:reply, :ok, state}
-
-      {:error, error} ->
-        on_refresh_failure = opts[:on_refresh_failure]
-
-        case :ets.lookup(:oauth2_metadata, issuer) do
-        # silently fails and returns already saved (and outdated?) metadata
-        [{_issuer, _last_update_time, metadata, _jwks}] when not is_nil metadata and on_refresh_failure == :keep_metadata ->
-          :ets.update_element(:oauth2_metadata, issuer, {2, now()})
-          Logger.warn("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
           {:reply, :ok, state}
-        _ ->
-          :ets.insert(:oauth2_metadata, {issuer, now(), nil, nil})
-          {:reply, {:error, error}, state}
-        end
+
+        {:error, error} ->
+          on_refresh_failure = opts[:on_refresh_failure]
+
+          case :ets.lookup(:oauth2_metadata, issuer) do
+          # silently fails and returns already saved (and outdated?) metadata
+          [{_issuer, _last_update_time, metadata, _jwks}] when not is_nil metadata and on_refresh_failure == :keep_metadata ->
+            :ets.update_element(:oauth2_metadata, issuer, {2, now()})
+            Logger.warn("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
+            {:reply, :ok, state}
+          _ ->
+            :ets.insert(:oauth2_metadata, {issuer, now(), nil, nil})
+            {:reply, {:error, error}, state}
+          end
+      end
     end
   end
 
