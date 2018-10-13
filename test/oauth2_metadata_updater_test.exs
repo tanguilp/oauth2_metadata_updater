@@ -27,12 +27,12 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, "#{endpoint_url(bypass)}/auth"} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
     assert {:ok, ["openid", "email", "profile"]} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "scopes_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -54,8 +54,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :invalid_issuer_value} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -78,15 +78,15 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, "incorrect issuer value in claims"} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :invalid_issuer_value} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
   end
 
   test "Issuer in response must be the same as the requested one - not taking into account unicode normalization (test with noël strings)", %{bypass: bypass} do
-    Bypass.expect_once bypass, "GET", "/.well-known/oauth-authorization-server/noël", fn conn ->
+    Bypass.expect_once bypass, "GET", URI.encode("/.well-known/oauth-authorization-server/noël"), fn conn ->
       Plug.Conn.put_resp_header(conn, "Content-Type", "application/json")
       |> Plug.Conn.resp(200, ~s({
         "issuer": "#{endpoint_url(bypass)}/noël",
@@ -102,8 +102,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, "incorrect issuer value in claims"} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass) <> "/noël",
+    assert {:error, :invalid_issuer_value} ==
+      Oauth2MetadataUpdater.get_metadata_value(URI.encode(endpoint_url(bypass) <> "/noël"),
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -111,8 +111,8 @@ defmodule Oauth2MetadataUpdaterTest do
 
   # such issuers should be detected early enough so that no HTTP request will actually be made
   test "Non-HTTPS issuers are rejected", %{bypass: bypass} do
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim("http://#{bypass.hostname}:#{bypass.port}",
+    assert {:error, :invalid_uri_scheme} ==
+      Oauth2MetadataUpdater.get_metadata_value("http://#{bypass.hostname}:#{bypass.port}",
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -135,8 +135,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim("https://#{bypass.hostname}:#{bypass.port}",
+    assert {:error, :invalid_issuer_value} ==
+      Oauth2MetadataUpdater.get_metadata_value("https://#{bypass.hostname}:#{bypass.port}",
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -160,8 +160,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim("https://#{bypass.hostname}:#{bypass.port}",
+    assert {:error, :invalid_issuer_value} ==
+      Oauth2MetadataUpdater.get_metadata_value("https://#{bypass.hostname}:#{bypass.port}",
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -169,8 +169,8 @@ defmodule Oauth2MetadataUpdaterTest do
 
   test "The well-known suffix must be registered at the IANA registry", %{bypass: bypass} do
 
-    assert {:error, "Unauthorized suffix" <> _} =
-      Oauth2MetadataUpdater.get_claim("https://#{bypass.hostname}:#{bypass.port}",
+    assert {:error, :invalid_suffix} ==
+      Oauth2MetadataUpdater.get_metadata_value("https://#{bypass.hostname}:#{bypass.port}",
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       suffix: "unregistered-suffix",
@@ -194,8 +194,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, "Invalid response content type, must be application/json"} ==
-      Oauth2MetadataUpdater.get_claim("https://#{bypass.hostname}:#{bypass.port}",
+    assert {:error, :invalid_response_content_type} ==
+      Oauth2MetadataUpdater.get_metadata_value("https://#{bypass.hostname}:#{bypass.port}",
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -218,8 +218,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, "Invalid HTTP response code:" <> _} =
-      Oauth2MetadataUpdater.get_claim("https://#{bypass.hostname}:#{bypass.port}",
+    assert {:error, :invalid_http_response_code} ==
+      Oauth2MetadataUpdater.get_metadata_value("https://#{bypass.hostname}:#{bypass.port}",
                                       "authorization_endpoint",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -242,8 +242,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :missing_authorization_endpoint} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "jwks_uri",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -267,7 +267,7 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "jwks_uri",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -290,8 +290,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :missing_token_endpoint} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "jwks_uri",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -315,7 +315,7 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "jwks_uri",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -338,8 +338,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :jwks_invalid_uri_scheme} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "jwks_uri",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -355,15 +355,15 @@ defmodule Oauth2MetadataUpdaterTest do
         "grant_types_supported": ["implicit"],
         "userinfo_endpoint": "#{endpoint_url(bypass)}/userinfo",
         "revocation_endpoint": "#{endpoint_url(bypass)}/revoke",
-        "jwks_uri": "http://example.com/certs",
+        "jwks_uri": "#{endpoint_url(bypass)}/certs",
         "scopes_supported": ["openid", "email", "profile"],
         "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
         "code_challenge_methods_supported": ["plain", "S256"]})
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :missing_response_types_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "jwks_uri",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -388,7 +388,7 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, ["query", "fragment"]} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "response_modes_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -412,7 +412,7 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, ["authorization_code", "implicit"]} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "grant_types_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -435,7 +435,7 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, ["client_secret_basic"]} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "token_endpoint_auth_methods_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -458,8 +458,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :missing_token_endpoint_auth_signing_alg_values_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "token_endpoint_auth_signing_alg_values_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -483,8 +483,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :none_value_forbidden_token_endpoint_auth_signing_values_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "token_endpoint_auth_signing_alg_values_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -508,7 +508,7 @@ defmodule Oauth2MetadataUpdaterTest do
     end
 
     assert {:ok, ["client_secret_basic"]} ==
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "revocation_endpoint_auth_methods_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -531,8 +531,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :missing_revocation_endpoint_auth_signing_alg_values_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "revocation_endpoint_auth_methods_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -556,8 +556,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :none_value_forbidden_revocation_endpoint_auth_signing_alg_values_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "revocation_endpoint_auth_methods_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -580,8 +580,8 @@ defmodule Oauth2MetadataUpdaterTest do
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :missing_introspection_endpoint_auth_signing_alg_values_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "introspection_endpoint_auth_methods_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])
@@ -599,14 +599,14 @@ defmodule Oauth2MetadataUpdaterTest do
         "jwks_uri": "#{endpoint_url(bypass)}/certs",
         "response_types_supported": ["code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token"],
         "introspection_endpoint_auth_methods_supported": ["client_secret_post", "private_key_jwt", "client_secret_basic"],
-        "revocation_endpoint_auth_signing_alg_values_supported": ["RS256", "none"],
+        "introspection_endpoint_auth_signing_alg_values_supported": ["RS256", "none"],
         "scopes_supported": ["openid", "email", "profile"],
         "code_challenge_methods_supported": ["plain", "S256"]})
       )
     end
 
-    assert {:error, _} =
-      Oauth2MetadataUpdater.get_claim(endpoint_url(bypass),
+    assert {:error, :none_value_forbidden_introspection_endpoint_auth_signing_alg_values_supported} ==
+      Oauth2MetadataUpdater.get_metadata_value(endpoint_url(bypass),
                                       "introspection_endpoint_auth_methods_supported",
                                       resolve_jwks: false,
                                       ssl: [cacerts: [bypass.ssl_cert]])

@@ -24,8 +24,8 @@ defmodule Oauth2MetadataUpdater.Updater do
     GenServer.start_link(__MODULE__, [], name: :oauth2_metadata_updater)
   end
 
-  @spec get_claim(String.t, String.t, Keyword.t) :: {:ok, String.t | nil} | {:error, Exception.t}
-  def get_claim(issuer, claim, opts) do
+  @spec get_metadata_value(String.t, String.t, Keyword.t) :: {:ok, String.t | nil} | {:error, atom()}
+  def get_metadata_value(issuer, claim, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
     update_res = unless metadata_up_to_date?(issuer, opts), do: GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
@@ -39,8 +39,8 @@ defmodule Oauth2MetadataUpdater.Updater do
     end
   end
 
-  @spec get_all_claims(String.t, Keyword.t) :: {:ok, map() | nil} | {:error, Exception.t}
-  def get_all_claims(issuer, opts) do
+  @spec get_metadata(String.t, Keyword.t) :: {:ok, map() | nil} | {:error, atom()}
+  def get_metadata(issuer, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
     update_res = unless metadata_up_to_date?(issuer, opts), do: GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
@@ -54,7 +54,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     end
   end
 
-  @spec get_jwks(String.t, Keyword.t) :: {:ok, map() | nil} | {:error, Exception.t}
+  @spec get_jwks(String.t, Keyword.t) :: {:ok, map() | nil} | {:error, atom()}
   def get_jwks(issuer, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
@@ -155,15 +155,15 @@ defmodule Oauth2MetadataUpdater.Updater do
          :ok <- has_introspection_endpoint_auth_signing_alg_values_supported?(claims) do
            claims
     else
-      {:ok, %HTTPoison.Response{status_code: status_code}} ->
-        {:error, "Invalid HTTP response code: #{status_code}"}
+      {:ok, %HTTPoison.Response{}} ->
+        {:error, :invalid_http_response_code}
       {:error, error} ->
         {:error, error}
     end
   end
 
   defp suffix_authorized?(suffix) when suffix in @allowed_suffixes, do: :ok
-  defp suffix_authorized?(suffix), do: {:error, "Unauthorized suffix: \"#{suffix}\""}
+  defp suffix_authorized?(_), do: {:error, :invalid_suffix}
 
   defp build_url(issuer, opts) do
     # If the issuer identifier value contains a path component, any
@@ -185,13 +185,13 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   defp https_scheme?(%URI{scheme: "https"}), do: :ok
-  defp https_scheme?(_), do: {:error, "URI scheme is not https"}
+  defp https_scheme?(_), do: {:error, :invalid_uri_scheme}
 
   defp content_type_application_json?(headers) do
     case List.keyfind(headers, "Content-Type", 0) do
       {_, "application/json"} -> :ok
 
-      _ -> {:error, "Invalid response content type, must be application/json"}
+      _ -> {:error, :invalid_response_content_type}
     end
   end
 
@@ -210,14 +210,14 @@ defmodule Oauth2MetadataUpdater.Updater do
          issuer_claim_uri.fragment == nil do
       :ok
     else
-      {:error, "incorrect issuer value in claims"}
+      {:error, :invalid_issuer_value}
     end
   end
 
   defp has_authorization_endpoint?(claims) do
     if not Map.has_key?(claims, "authorization_endpoint") and
       Enum.any?(claims["grant_types_supported"], fn gt -> OAuth2Utils.uses_authorization_endpoint?(gt) end) do
-      {:error, "missing authorization_endpoint claim"}
+      {:error, :missing_authorization_endpoint}
     else
       :ok
     end
@@ -227,7 +227,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     if Map.has_key?(claims, "token_endpoint") or ["implicit"] == claims["grant_types_supported"] do
       :ok
     else
-      {:error, "missing token_endpoint claim"}
+      {:error, :missing_token_endpoint}
     end
   end
 
@@ -237,7 +237,7 @@ defmodule Oauth2MetadataUpdater.Updater do
       :ok ->
         :ok
       {:error, _} ->
-        {:error, "JWKS URI does not use https scheme"}
+        {:error, :jwks_invalid_uri_scheme}
     end
   end
 
@@ -245,18 +245,21 @@ defmodule Oauth2MetadataUpdater.Updater do
     if is_list(claims["response_types_supported"]) do
       :ok
     else
-      {:error, message: "missing response_types_supported claim"}
+      {:error, :missing_response_types_supported}
     end
   end
 
   defp has_token_endpoint_auth_signing_alg_values_supported?(claims) do
     if "private_key_jwt" in claims["token_endpoint_auth_methods_supported"] or
          "client_secret_jwt" in claims["token_endpoint_auth_methods_supported"] do
-      if is_list(claims["token_endpoint_auth_signing_alg_values_supported"]) and
-           "none" not in claims["token_endpoint_auth_signing_alg_values_supported"] do
-        :ok
+      if is_list(claims["token_endpoint_auth_signing_alg_values_supported"]) do
+        if "none" not in claims["token_endpoint_auth_signing_alg_values_supported"] do
+          :ok
+        else
+          {:error, :none_value_forbidden_token_endpoint_auth_signing_values_supported}
+        end
       else
-        {:error, "missing token_endpoint_auth_signing_alg_values_supported claim or forbidden \"none\" value"}
+        {:error, :missing_token_endpoint_auth_signing_alg_values_supported}
       end
     else
       :ok
@@ -266,11 +269,14 @@ defmodule Oauth2MetadataUpdater.Updater do
   defp has_revocation_endpoint_auth_signing_alg_values_supported?(claims) do
     if "private_key_jwt" in claims["revocation_endpoint_auth_methods_supported"] or
          "client_secret_jwt" in claims["revocation_endpoint_auth_methods_supported"] do
-      if is_list(claims["revocation_endpoint_auth_signing_alg_values_supported"]) and
-           "none" not in claims["revocation_endpoint_auth_signing_alg_values_supported"] do
-        :ok
+      if is_list(claims["revocation_endpoint_auth_signing_alg_values_supported"]) do 
+        if "none" not in claims["revocation_endpoint_auth_signing_alg_values_supported"] do
+          :ok
+        else
+          {:error, :none_value_forbidden_revocation_endpoint_auth_signing_alg_values_supported}
+        end
       else
-        {:error, "missing revocation_endpoint_auth_signing_alg_values_supported claim"}
+        {:error, :missing_revocation_endpoint_auth_signing_alg_values_supported}
       end
     else
       :ok
@@ -281,11 +287,14 @@ defmodule Oauth2MetadataUpdater.Updater do
     if is_list(claims["introspection_endpoint_auth_methods_supported"]) and
          ("private_key_jwt" in claims["introspection_endpoint_auth_methods_supported"] or
             "client_secret_jwt" in claims["introspection_endpoint_auth_methods_supported"]) do
-      if is_list(claims["introspection_endpoint_auth_signing_alg_values_supported"]) and
-           "none" not in claims["introspection_endpoint_auth_signing_alg_values_supported"] do
-        :ok
+      if is_list(claims["introspection_endpoint_auth_signing_alg_values_supported"]) do 
+        if "none" not in claims["introspection_endpoint_auth_signing_alg_values_supported"] do
+          :ok
+        else
+          {:error, :none_value_forbidden_introspection_endpoint_auth_signing_alg_values_supported}
+        end
       else
-        {:error, "missing introspection_endpoint_auth_signing_alg_values_supported claim"}
+        {:error, :missing_introspection_endpoint_auth_signing_alg_values_supported}
       end
     else
       :ok

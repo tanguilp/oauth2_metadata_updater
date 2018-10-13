@@ -20,8 +20,8 @@ defmodule Oauth2MetadataUpdater do
       Supervisor.start_link(children, strategy: :one_for_one, name: :oauth2_metadata_updater_sup)
   end
 
-  defdelegate get_claim(issuer, claim, opts \\ []), to: Oauth2MetadataUpdater.Updater
-  defdelegate get_all_claims(issuer, opts \\  []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_metadata_value(issuer, claim, opts \\ []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_metadata(issuer, opts \\  []), to: Oauth2MetadataUpdater.Updater
   defdelegate get_jwks(issuer, opts \\ []), to: Oauth2MetadataUpdater.Updater
 
 end
