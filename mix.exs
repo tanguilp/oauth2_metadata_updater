@@ -31,7 +31,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
       {:oauth2_utils, github: "tanguilp/oauth2_utils"},
       {:content_type, github: "marcelotto/content_type"},
       {:bypass, github: "tanguilp/bypass-1", only: :test},
-      {:ex_doc, "~> 0.16", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.19", only: :dev, runtime: false}
     ]
   end
 end

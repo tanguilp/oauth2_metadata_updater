@@ -85,6 +85,9 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   # server callbacks
 
+  @doc """
+  """
+
   def init(_opts) do
     HTTPoison.start()
 
