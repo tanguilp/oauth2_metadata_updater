@@ -12,7 +12,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   @default_opts [
     suffix: "oauth-authorization-server",
     refresh_interval: 3600,
-    min_refresh_interval: 20,
+    min_refresh_interval: 10,
     resolve_jwks: true,
     on_refresh_failure: :keep_metadata,
     url_construction: :standard,
@@ -72,7 +72,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   defp metadata_up_to_date?(issuer, opts) do
     case :ets.lookup(:oauth2_metadata, issuer) do
       [{_issuer, last_update_time, metadata, _jwks}] ->
-        if now() - last_update_time < opts[:refresh_interval] and
+        if now() - last_update_time < opts[:refresh_interval] or
            (metadata == nil and
            now() - last_update_time < opts[:min_refresh_interval])
         do
@@ -215,32 +215,29 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   defp has_authorization_endpoint?(claims) do
-    if Map.has_key?(claims, "authorization_endpoint") or
-         ("authorization_code" not in claims["grant_types_supported"] and
-            "implicit" not in claims["grant_types_supported"]) do
-      :ok
-    else
+    if not Map.has_key?(claims, "authorization_endpoint") and
+      Enum.any?(claims["grant_types_supported"], fn gt -> OAuth2Utils.uses_authorization_endpoint?(gt) end) do
       {:error, "missing authorization_endpoint claim"}
+    else
+      :ok
     end
   end
 
   defp has_token_endpoint?(claims) do
-    if Map.has_key?(claims, "token_endpoint") or ["token"] == claims["response_types_supported"] do
+    if Map.has_key?(claims, "token_endpoint") or ["implicit"] == claims["grant_types_supported"] do
       :ok
     else
       {:error, "missing token_endpoint claim"}
     end
   end
 
-  defp jwks_uri_valid?(%{} = claims) do
-    if Map.has_key?(claims, "jwks_uri") do
-      if https_scheme?(URI.parse(to_string(claims["jwks_uri"]))) do
+  defp jwks_uri_valid?(%{"jwks_uri" => nil}), do: :ok
+  defp jwks_uri_valid?(%{"jwks_uri" => jwks_uri}) when is_binary(jwks_uri) do
+    case https_scheme?(URI.parse(jwks_uri)) do
+      :ok ->
         :ok
-      else
+      {:error, _} ->
         {:error, "JWKS URI does not use https scheme"}
-      end
-    else
-      :ok
     end
   end
 

@@ -28,6 +28,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
     [
       {:httpoison, "~> 0.13"},
       {:poison, "~> 3.1"},
+      {:oauth2_utils, github: "tanguilp/oauth2_utils"},
       {:bypass, github: "tanguilp/bypass-1", only: :test},
       {:ex_doc, "~> 0.16", only: :dev, runtime: false}
     ]
