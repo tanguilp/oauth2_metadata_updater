@@ -16,7 +16,9 @@ defmodule Oauth2MetadataUpdater.Updater do
     resolve_jwks: true,
     on_refresh_failure: :keep_metadata,
     url_construction: :standard,
-    ssl: []
+    validation: :oauth2,
+    ssl: [],
+    ssl_jwks: []
   ]
 
   # client API
@@ -71,15 +73,11 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   defp metadata_up_to_date?(issuer, opts) do
     case :ets.lookup(:oauth2_metadata, issuer) do
-      [{_issuer, last_update_time, metadata, _jwks}] ->
-        if now() - last_update_time < opts[:refresh_interval] or
-           (metadata == nil and
-           now() - last_update_time < opts[:min_refresh_interval])
-        do
-          true
-        else
-          false
-        end
+      [{_issuer, last_update_time, nil, _jwks}] ->
+        if now() - last_update_time < opts[:min_refresh_interval], do: true, else: false
+
+      [{_issuer, last_update_time, _metadata, _jwks}] ->
+        if now() - last_update_time < opts[:refresh_interval], do: true, else: false
 
       _ -> false
     end
@@ -148,11 +146,14 @@ defmodule Oauth2MetadataUpdater.Updater do
          :ok <- issuer_valid?(issuer, claims),
          :ok <- has_authorization_endpoint?(claims),
          :ok <- has_token_endpoint?(claims),
+         :ok <- oidc_has_jwks_uri?(claims, opts[:validation]),
          :ok <- jwks_uri_valid?(claims),
          :ok <- has_response_types_supported?(claims),
+         :ok <- oidc_has_subject_types_supported?(claims, opts[:validation]),
          :ok <- has_token_endpoint_auth_signing_alg_values_supported?(claims),
          :ok <- has_revocation_endpoint_auth_signing_alg_values_supported?(claims),
-         :ok <- has_introspection_endpoint_auth_signing_alg_values_supported?(claims) do
+         :ok <- has_introspection_endpoint_auth_signing_alg_values_supported?(claims),
+         :ok <- oidc_has_id_token_signing_alg_values_supported?(claims, opts[:validation]) do
            claims
     else
       {:ok, %HTTPoison.Response{}} ->
@@ -189,9 +190,14 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   defp content_type_application_json?(headers) do
     case List.keyfind(headers, "Content-Type", 0) do
-      {_, "application/json"} -> :ok
+      nil ->
+        {:error, :invalid_response_content_type}
 
-      _ -> {:error, :invalid_response_content_type}
+      {_, media_type} ->
+        case ContentType.content_type(media_type) do
+          {:ok, "application", "json", _} -> :ok
+          _ -> {:error, :invalid_response_content_type}
+        end
     end
   end
 
@@ -231,6 +237,10 @@ defmodule Oauth2MetadataUpdater.Updater do
     end
   end
 
+  defp oidc_has_jwks_uri?(_, :oauth2), do: :ok
+  defp oidc_has_jwks_uri?(%{"jwks_uri" => jwks_uri}, :oidc) when is_binary(jwks_uri), do: :ok
+  defp oidc_has_jwks_uri?(_, :oidc), do: {:error, :missing_jwks_uri}
+
   defp jwks_uri_valid?(%{"jwks_uri" => nil}), do: :ok
   defp jwks_uri_valid?(%{"jwks_uri" => jwks_uri}) when is_binary(jwks_uri) do
     case https_scheme?(URI.parse(jwks_uri)) do
@@ -246,6 +256,15 @@ defmodule Oauth2MetadataUpdater.Updater do
       :ok
     else
       {:error, :missing_response_types_supported}
+    end
+  end
+
+  defp oidc_has_subject_types_supported?(_, :oauth2), do: :ok
+  defp oidc_has_subject_types_supported?(claims, :oidc) do
+    if is_list(claims["subject_types_supported"]) do
+      :ok
+    else
+      {:error, :missing_subject_types_supported}
     end
   end
 
@@ -301,13 +320,26 @@ defmodule Oauth2MetadataUpdater.Updater do
     end
   end
 
+  defp oidc_has_id_token_signing_alg_values_supported?(_, :oauth2), do: :ok
+  defp oidc_has_id_token_signing_alg_values_supported?(claims, :oidc) do
+    if is_list(claims["id_token_signing_alg_values_supported"]) do
+      if "RS256" in claims["id_token_signing_alg_values_supported"] do
+        :ok
+      else
+        {:error, :missing_rs256_alg_from_id_token_signing_alg_values_supported}
+      end
+    else
+      {:error, :missing_id_token_signing_alg_values_supported}
+    end
+  end
+
   defp request_and_process_jwks(issuer, nil, _opts) do
     Logger.info("#{__MODULE__}: no jwks URI for issuer #{issuer}")
     nil
   end
 
   defp request_and_process_jwks(_issuer, jwks_uri, opts) do
-    response = HTTPoison.get!(jwks_uri, [], opts[:ssl])
+    response = HTTPoison.get!(jwks_uri, [], opts[:ssl_jwks])
 
     Poison.decode!(response.body)
   end
