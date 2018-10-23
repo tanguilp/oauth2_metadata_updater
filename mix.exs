@@ -26,11 +26,12 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:httpoison, "~> 0.13"},
+      {:httpoison, "~> 1.0"},
       {:poison, "~> 3.1"},
-      {:oauth2_utils, github: "tanguilp/oauth2_utils"},
-      {:content_type, github: "marcelotto/content_type"},
-      {:bypass, github: "tanguilp/bypass-1", only: :test},
+      {:oauth2_utils, github: "tanguilp/oauth2_utils", tag: "master"},
+      {:content_type, github: "marcelotto/content_type", tag: "master"},
+      {:bypass, github: "tanguilp/bypass-1", only: :test, tag: "master"},
+      {:plug_cowboy, "~> 2.0", only: :test},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false}
     ]
   end

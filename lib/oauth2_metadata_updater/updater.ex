@@ -88,6 +88,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   @doc """
   """
 
+  @impl true
   def init(_opts) do
     HTTPoison.start()
 
@@ -101,6 +102,10 @@ defmodule Oauth2MetadataUpdater.Updater do
     {:ok, %{}}
   end
 
+  @doc """
+  """
+
+  @impl true
   def handle_call({:update_metadata, issuer, opts}, _from, state) do
     # the metadata may have already been updated but the HTTP request
     # was in-flight and that method called meanwhile
@@ -137,6 +142,8 @@ defmodule Oauth2MetadataUpdater.Updater do
       end
     end
   end
+
+
 
   defp request_and_process_metadata(issuer, opts) do
     with :ok <- suffix_authorized?(opts[:suffix]),

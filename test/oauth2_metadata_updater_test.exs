@@ -1,6 +1,5 @@
 defmodule Oauth2MetadataUpdaterTest do
   use ExUnit.Case
-  doctest Oauth2MetadataUpdater
 
   setup do
     bypass = Bypass.open(transport: :ssl)
