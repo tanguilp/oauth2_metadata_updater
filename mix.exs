@@ -10,7 +10,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
       deps: deps(),
 
       # Docs
-      source_url: "https://github.com/sergeypopol/oauth2_metadata_updater",
+      source_url: "https://github.com/tanguilp/oauth2_metadata_updater",
       docs: [extras: ["README.md"]]
     ]
   end
