@@ -4,7 +4,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   def project do
     [
       app: :oauth2_metadata_updater,
-      version: "0.1.0",
+      version: "0.2.0",
       elixir: "~> 1.5",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -26,8 +26,9 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:httpoison, "~> 1.0"},
-      {:poison, "~> 3.1"},
+      {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false},
+      {:httpoison, "~> 1.5"},
+      {:poison, "~> 4.0"},
       {:oauth2_utils, github: "tanguilp/oauth2_utils", tag: "master"},
       {:content_type, github: "marcelotto/content_type", tag: "master"},
       {:bypass, github: "tanguilp/bypass-1", only: :test, tag: "master"},

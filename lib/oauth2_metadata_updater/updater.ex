@@ -13,12 +13,10 @@ defmodule Oauth2MetadataUpdater.Updater do
     suffix: "oauth-authorization-server",
     refresh_interval: 3600,
     min_refresh_interval: 10,
-    resolve_jwks: true,
     on_refresh_failure: :keep_metadata,
     url_construction: :standard,
     validation: :oauth2,
-    ssl: [],
-    ssl_jwks: []
+    ssl: []
   ]
 
   # client API
@@ -26,7 +24,10 @@ defmodule Oauth2MetadataUpdater.Updater do
     GenServer.start_link(__MODULE__, [], name: :oauth2_metadata_updater)
   end
 
-  @spec get_metadata_value(String.t, String.t, Keyword.t) :: {:ok, String.t | nil} | {:error, atom()}
+  @spec get_metadata_value(String.t, String.t, Keyword.t) ::
+  {:ok, String.t | nil} |
+  {:error, atom()}
+
   def get_metadata_value(issuer, claim, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
@@ -35,9 +36,15 @@ defmodule Oauth2MetadataUpdater.Updater do
     case update_res do
       {:error, e} ->
         {:error, e}
+
       _ ->
-        [{_issuer, _last_update_time, metadata, _jwks}] = :ets.lookup(:oauth2_metadata, issuer)
-        {:ok, metadata[claim]}
+        case :ets.lookup(:oauth2_metadata, issuer) do
+          [{_issuer, _last_update_time, {:error, error}}] ->
+            {:error, error}
+
+          [{_issuer, _last_update_time, metadata}] ->
+            {:ok, metadata[claim]}
+        end
     end
   end
 
@@ -45,38 +52,31 @@ defmodule Oauth2MetadataUpdater.Updater do
   def get_metadata(issuer, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
-    update_res = unless metadata_up_to_date?(issuer, opts), do: GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
+    update_res =
+      unless metadata_up_to_date?(issuer, opts) do
+        GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
+      end
 
     case update_res do
-      {:error, e} -> {:error, e}
+      {:error, e} ->
+        {:error, e}
       _ ->
-        [{_issuer, _last_update_time, metadata, _jwks}] = :ets.lookup(:oauth2_metadata, issuer)
+        case :ets.lookup(:oauth2_metadata, issuer) do
+          [{_issuer, _last_update_time, {:error, error}}] ->
+            {:error, error}
 
-        {:ok, metadata}
-    end
-  end
-
-  @spec get_jwks(String.t, Keyword.t) :: {:ok, map() | nil} | {:error, atom()}
-  def get_jwks(issuer, opts) do
-    opts = Keyword.merge(@default_opts, opts)
-
-    update_res = unless metadata_up_to_date?(issuer, opts), do: GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
-
-    case update_res do
-      {:error, e} -> {:error, e}
-      _ ->
-        [{_issuer, _last_update_time, _metadata, jwks}] = :ets.lookup(:oauth2_metadata, issuer)
-
-        {:ok, jwks}
+          [{_issuer, _last_update_time, metadata}] ->
+            {:ok, metadata}
+        end
     end
   end
 
   defp metadata_up_to_date?(issuer, opts) do
     case :ets.lookup(:oauth2_metadata, issuer) do
-      [{_issuer, last_update_time, nil, _jwks}] ->
+      [{_issuer, last_update_time, {:error, _}}] ->
         if now() - last_update_time < opts[:min_refresh_interval], do: true, else: false
 
-      [{_issuer, last_update_time, _metadata, _jwks}] ->
+      [{_issuer, last_update_time, _metadata}] ->
         if now() - last_update_time < opts[:refresh_interval], do: true, else: false
 
       _ -> false
@@ -114,15 +114,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     else
       case request_and_process_metadata(issuer, opts) do
         claims when is_map(claims) ->
-
-          jwks =
-            if opts[:resolve_jwks] == true do
-              request_and_process_jwks(issuer, claims["jwks_uri"], opts)
-            else
-              nil
-            end
-
-          :ets.insert(:oauth2_metadata, {issuer, now(), claims, jwks})
+          :ets.insert(:oauth2_metadata, {issuer, now(), claims})
 
           {:reply, :ok, state}
 
@@ -130,13 +122,17 @@ defmodule Oauth2MetadataUpdater.Updater do
           on_refresh_failure = opts[:on_refresh_failure]
 
           case :ets.lookup(:oauth2_metadata, issuer) do
-          # silently fails and returns already saved (and outdated?) metadata
-          [{_issuer, _last_update_time, metadata, _jwks}] when not is_nil metadata and on_refresh_failure == :keep_metadata ->
+            [{_issuer, _last_update_time, metadata}] when not is_nil metadata
+            and on_refresh_failure == :keep_metadata ->
             :ets.update_element(:oauth2_metadata, issuer, {2, now()})
+
             Logger.warn("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
+
             {:reply, :ok, state}
+
           _ ->
-            :ets.insert(:oauth2_metadata, {issuer, now(), nil, nil})
+            :ets.insert(:oauth2_metadata, {issuer, now(), {:error, error}})
+
             {:reply, {:error, error}, state}
           end
       end
@@ -343,17 +339,5 @@ defmodule Oauth2MetadataUpdater.Updater do
     end
   end
 
-  defp request_and_process_jwks(issuer, nil, _opts) do
-    Logger.info("#{__MODULE__}: no jwks URI for issuer #{issuer}")
-    nil
-  end
-
-  defp request_and_process_jwks(_issuer, jwks_uri, opts) do
-    response = HTTPoison.get!(jwks_uri, [], opts[:ssl_jwks])
-
-    Poison.decode!(response.body)
-  end
-
   defp now(), do: System.system_time(:second)
-
 end
