@@ -25,7 +25,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   @spec get_metadata_value(String.t, String.t, Keyword.t) ::
-  {:ok, String.t | nil} |
+  {:ok, any() | nil} |
   {:error, atom()}
 
   def get_metadata_value(issuer, claim, opts) do
