@@ -4,14 +4,17 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   def project do
     [
       app: :oauth2_metadata_updater,
+      description: "OAuth2 and OpenID Connect metadata updater for Elixir",
       version: "0.2.0",
       elixir: "~> 1.5",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-
-      # Docs
-      source_url: "https://github.com/tanguilp/oauth2_metadata_updater",
-      docs: [extras: ["README.md"]]
+      docs: [
+        main: "readme",
+        extras: ["README.md"]
+      ],
+      package: package(),
+      source_url: "https://github.com/tanguilp/oauth2_metadata_updater"
     ]
   end
 
@@ -26,14 +29,18 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:content_type, "~> 0.1.0"},
       {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false},
-      {:httpoison, "~> 1.5"},
-      {:poison, "~> 4.0"},
-      {:oauth2_utils, github: "tanguilp/oauth2_utils", tag: "master"},
-      {:content_type, github: "marcelotto/content_type", tag: "master"},
-      {:bypass, github: "tanguilp/bypass-1", only: :test, tag: "master"},
-      {:plug_cowboy, "~> 2.0", only: :test},
-      {:ex_doc, "~> 0.19", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.19", only: :dev, runtime: false},
+      {:oauth2_utils, "~> 0.1.0"},
+      {:tesla, "~> 1.3.0"}
+    ]
+  end
+
+  def package() do
+    [
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => "https://github.com/tanguilp/oauth2_metadata_updater"}
     ]
   end
 end

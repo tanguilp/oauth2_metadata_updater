@@ -9,25 +9,34 @@ defmodule Oauth2MetadataUpdater do
   - [OpenID Connect Discovery 1.0 incorporating errata set 1](https://openid.net/specs/openid-connect-discovery-1_0.html)
           - Except section 2
 
-  The following functions can be called with the following options:
-  - `suffix`: the well-know URI suffix as documented in the [IANA registry](https://www.iana.org/assignments/well-known-uris/well-known-uris.xhtml). Defaults to `"oauth-authorization-server"`. Many issuers use `"openid-configuration"`
-  - `refresh_interval`: the number of seconds to keep metadata in cache before it is fetched again. Defaults to `3600` seconds
-  - `min_refresh_interval`: the delay before Oauth2MetadataUpdater will try to fetch metadata of an issuer again. It is intended to prevent fetching storms when the metadata is unavailable. Defaults to `10` seconds
-  - `on_refresh_failure`: determines the behaviour of Oauth2MetadataUpdater when the issuer metadata *becomes* unavailable: `:keep_metadata` will keep the metadata in the cache, `:discard` will delete the metadata. Defaults to `:keep_metadata`
+  The following functions accept the following options:
+  - `suffix`: the well-know URI suffix as documented in the
+  [IANA registry](https://www.iana.org/assignments/well-known-uris/well-known-uris.xhtml).
+  Defaults to `"oauth-authorization-server"`. Many issuers use `"openid-configuration"`
+  - `refresh_interval`: the number of seconds to keep metadata in cache before it is fetched
+  again. Defaults to `3600` seconds
+  - `min_refresh_interval`: the delay before Oauth2MetadataUpdater will try to fetch metadata
+  of an issuer again. It is intended to prevent fetching storms when the metadata is
+  unavailable. Defaults to `10` seconds
+  - `on_refresh_failure`: determines the behaviour of Oauth2MetadataUpdater when the issuer
+  metadata *becomes* unavailable: `:keep_metadata` will keep the metadata in the cache,
+  `:discard` will delete the metadata. Defaults to `:keep_metadata`
+  - `:tesla_middlewares`: `Tesla` middlewares to add to the outgoing request
   - `url_construction`: `:standard` (default) or `:non_standard_append`. Given the issuer
   `"https://www.example.com/auth"` the result URI would be:
     - `:standard`: `"https://www.example.com/.well-known/oauth-authorization-server/auth"`
     - `:non_standard_append`:
     `"https://www.example.com/auth/.well-known/oauth-authorization-server"`
-  - `validation`: in addition to the mandatory metadata values of the OAuth2 specification, OpenID Connect makes the `jwks_uri`, `subject_types_supported` and `id_token_signing_alg_values_supported` values mandatory. This option determines against which standard to validate: `:oauth2` or `:oidc`. Defaults to `:oauth2`
-  - `ssl`: Erlang client SSL options for the HTTP request to the issuer. Defaults to `[]`
+  - `validation`: in addition to the mandatory metadata values of the OAuth2 specification,
+  OpenID Connect makes the `jwks_uri`, `subject_types_supported` and
+  `id_token_signing_alg_values_supported` values mandatory. This option determines against
+  which standard to validate: `:oauth2` or `:oidc`. Defaults to `:oauth2`
 
   Make sure to always call these functions with the same options for the same issuer, otherwise you may have unpredictable results.
   """
   use Application
 
-  @doc """
-  """
+  @doc false
 
   def start(_type, _args) do
     import Supervisor.Spec

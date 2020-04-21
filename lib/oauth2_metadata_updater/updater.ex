@@ -1,4 +1,6 @@
 defmodule Oauth2MetadataUpdater.Updater do
+  @moduledoc false
+
   use GenServer
 
   require Logger
@@ -15,8 +17,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     min_refresh_interval: 10,
     on_refresh_failure: :keep_metadata,
     url_construction: :standard,
-    validation: :oauth2,
-    ssl: []
+    validation: :oauth2
   ]
 
   # client API
@@ -27,7 +28,6 @@ defmodule Oauth2MetadataUpdater.Updater do
   @spec get_metadata_value(String.t, String.t, Keyword.t) ::
   {:ok, any() | nil} |
   {:error, atom()}
-
   def get_metadata_value(issuer, claim, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
@@ -90,8 +90,6 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   @impl true
   def init(_opts) do
-    HTTPoison.start()
-
     :ets.new(:oauth2_metadata, [:set, :named_table, :protected, read_concurrency: true])
 
     unless is_nil(Application.get_env(:oauth2_metadata_updater, :preload)) do
@@ -145,9 +143,9 @@ defmodule Oauth2MetadataUpdater.Updater do
     with :ok <- suffix_authorized?(opts[:suffix]),
          {:ok, metadata_uri} <- build_url(issuer, opts),
          :ok <- https_scheme?(metadata_uri),
-         {:ok, %HTTPoison.Response{body: body, status_code: 200, headers: headers}} <- HTTPoison.get(URI.to_string(metadata_uri), [], hackney: [ssl_options: opts[:ssl]]),
+         http_client = opts |> tesla_middlewares() |> Tesla.client(),
+         {:ok, %Tesla.Env{body: claims, status: 200, headers: headers}} <- Tesla.get(http_client, URI.to_string(metadata_uri)),
          :ok <- content_type_application_json?(headers),
-         {:ok, claims} <- Poison.decode(body),
          claims <- set_default_values(claims),
          :ok <- issuer_valid?(issuer, claims),
          :ok <- has_authorization_endpoint?(claims),
@@ -162,8 +160,9 @@ defmodule Oauth2MetadataUpdater.Updater do
          :ok <- oidc_has_id_token_signing_alg_values_supported?(claims, opts[:validation]) do
            claims
     else
-      {:ok, %HTTPoison.Response{}} ->
+      {:ok, %Tesla.Env{}} ->
         {:error, :invalid_http_response_code}
+
       {:error, error} ->
         {:error, error}
     end
@@ -337,6 +336,12 @@ defmodule Oauth2MetadataUpdater.Updater do
     else
       {:error, :missing_id_token_signing_alg_values_supported}
     end
+  end
+
+  defp tesla_middlewares(opts) do
+    Application.get_env(:oauth2_metadata_updater, :tesla_middlewares, [])
+    ++ (opts[:tesla_middlewares] || [])
+    ++ [Tesla.Middleware.JSON]
   end
 
   defp now(), do: System.system_time(:second)
