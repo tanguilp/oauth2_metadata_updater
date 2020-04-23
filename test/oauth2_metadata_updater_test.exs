@@ -205,9 +205,9 @@ defmodule Oauth2MetadataUpdaterTest do
     assert {:error, _} = get_metadata("https://issuerwithfragment.example.com")
   end
 
-  #test "The well-known suffix must be registered at the IANA registry" do
-  #  assert {:error, _} = get_metadata("https://example.com", suffix: "unregistered-suffix")
-  #end
+  test "The well-known suffix must be registered at the IANA registry" do
+    assert {:error, _} = get_metadata("https://something.example.com", suffix: "unregistered-suffix")
+  end
 
   test "Response content type must be application/json" do
     assert {:error, :invalid_response_content_type} == get_metadata("https://invalidcontenttype.example.com")

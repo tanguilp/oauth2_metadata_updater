@@ -1,3 +1,3 @@
 use Mix.Config
 
-config :jwks_uri_updater, :tesla_middlewares, [Tesla.Middleware.Logger]
+config :oauth2_metadata_updater, :tesla_middlewares, [Tesla.Middleware.Logger]
