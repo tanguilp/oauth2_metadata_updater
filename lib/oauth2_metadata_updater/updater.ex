@@ -194,7 +194,10 @@ defmodule Oauth2MetadataUpdater.Updater do
   defp https_scheme?(_), do: {:error, :invalid_uri_scheme}
 
   defp content_type_application_json?(headers) do
-    case List.keyfind(headers, "Content-Type", 0) do
+    headers
+    |> Enum.map(fn {k, v} -> {String.downcase(k), v} end)
+    |> List.keyfind("content-type", 0)
+    |> case do
       nil ->
         {:error, :invalid_response_content_type}
 
