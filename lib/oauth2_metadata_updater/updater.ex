@@ -20,6 +20,8 @@ defmodule Oauth2MetadataUpdater.Updater do
     validation: :oauth2
   ]
 
+  @opts_to_hash [:suffix, :on_refresh_failure, :url_construction, :validation]
+
   # client API
   def start_link() do
     GenServer.start_link(__MODULE__, [], name: :oauth2_metadata_updater)
@@ -38,12 +40,18 @@ defmodule Oauth2MetadataUpdater.Updater do
         {:error, e}
 
       _ ->
+        opts_thumbprint = opts_thumbprint(opts)
+
         case :ets.lookup(:oauth2_metadata, issuer) do
-          [{_issuer, _last_update_time, {:error, error}}] ->
+          [{_issuer, _last_update_time, {:error, error}, _opts_thumbprint}] ->
             {:error, error}
 
-          [{_issuer, _last_update_time, metadata}] ->
+          [{_issuer, _last_update_time, metadata, ^opts_thumbprint}] ->
             {:ok, metadata[claim]}
+
+          _ ->
+            raise "The following options for the same issuer shall not be changed between " <>
+              "requests: " <> (@opts_to_hash |> Enum.map(&to_string/1) |> Enum.join(", "))
         end
     end
   end
@@ -60,23 +68,30 @@ defmodule Oauth2MetadataUpdater.Updater do
     case update_res do
       {:error, e} ->
         {:error, e}
+
       _ ->
+        opts_thumbprint = opts_thumbprint(opts)
+
         case :ets.lookup(:oauth2_metadata, issuer) do
-          [{_issuer, _last_update_time, {:error, error}}] ->
+          [{_issuer, _last_update_time, {:error, error}, _opts_thumbprint}] ->
             {:error, error}
 
-          [{_issuer, _last_update_time, metadata}] ->
+          [{_issuer, _last_update_time, metadata, ^opts_thumbprint}] ->
             {:ok, metadata}
+
+          _ ->
+            raise "The following options for the same issuer shall not be changed between " <>
+              "requests: #{@opts_to_hash}"
         end
     end
   end
 
   defp metadata_up_to_date?(issuer, opts) do
     case :ets.lookup(:oauth2_metadata, issuer) do
-      [{_issuer, last_update_time, {:error, _}}] ->
+      [{_issuer, last_update_time, {:error, _}, _opts_thumbprint}] ->
         if now() - last_update_time < opts[:min_refresh_interval], do: true, else: false
 
-      [{_issuer, last_update_time, _metadata}] ->
+      [{_issuer, last_update_time, _metadata, _opts_thumbprint}] ->
         if now() - last_update_time < opts[:refresh_interval], do: true, else: false
 
       _ -> false
@@ -112,7 +127,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     else
       case request_and_process_metadata(issuer, opts) do
         claims when is_map(claims) ->
-          :ets.insert(:oauth2_metadata, {issuer, now(), claims})
+          :ets.insert(:oauth2_metadata, {issuer, now(), claims, opts_thumbprint(opts)})
 
           {:reply, :ok, state}
 
@@ -120,8 +135,8 @@ defmodule Oauth2MetadataUpdater.Updater do
           on_refresh_failure = opts[:on_refresh_failure]
 
           case :ets.lookup(:oauth2_metadata, issuer) do
-            [{_issuer, _last_update_time, metadata}] when not is_nil metadata
-            and on_refresh_failure == :keep_metadata ->
+            [{_issuer, _last_update_time, metadata, _opts_thumbprint}] when not is_nil metadata
+              and on_refresh_failure == :keep_metadata ->
             :ets.update_element(:oauth2_metadata, issuer, {2, now()})
 
             Logger.warn("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
@@ -129,7 +144,7 @@ defmodule Oauth2MetadataUpdater.Updater do
             {:reply, :ok, state}
 
           _ ->
-            :ets.insert(:oauth2_metadata, {issuer, now(), {:error, error}})
+            :ets.insert(:oauth2_metadata, {issuer, now(), {:error, error}, opts_thumbprint(opts)})
 
             {:reply, {:error, error}, state}
           end
@@ -345,6 +360,13 @@ defmodule Oauth2MetadataUpdater.Updater do
     Application.get_env(:oauth2_metadata_updater, :tesla_middlewares, [])
     ++ (opts[:tesla_middlewares] || [])
     ++ [Tesla.Middleware.JSON]
+  end
+
+  defp opts_thumbprint(opts) do
+    opts
+    |> Keyword.take(@opts_to_hash)
+    |> Enum.into(%{})
+    |> :erlang.phash2()
   end
 
   defp now(), do: System.system_time(:second)

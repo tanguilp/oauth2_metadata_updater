@@ -2,7 +2,6 @@ defmodule Oauth2MetadataUpdater do
   @moduledoc """
   Oauth2MetadataUpdater dynamically loads metadata (lazy-loading) and keeps it in memory for further access. Examples:
 
-
   It Implements the following standards:
   - [RFC8414](https://tools.ietf.org/html/rfc8414) - OAuth 2.0 Authorization Server Metadata
           - Except section 2.1 (Signed Authorization Server Metadata)
@@ -32,7 +31,10 @@ defmodule Oauth2MetadataUpdater do
   `id_token_signing_alg_values_supported` values mandatory. This option determines against
   which standard to validate: `:oauth2` or `:oidc`. Defaults to `:oauth2`
 
-  Make sure to always call these functions with the same options for the same issuer, otherwise you may have unpredictable results.
+  The `:suffix`, `:on_refresh_failure`, `:url_construction`, `:validation` options shall be used
+  unchanged for a given issuer between multiple calls, otherwise an exception will be raised.
+
+  Note that OAuth2 and OpenID Connect default values are automatically added to the responses.
   """
   use Application
 

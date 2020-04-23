@@ -3,7 +3,8 @@
 > OAuth2 and OpenID Connect metadata updater for Elixir
 
 Oauth2MetadataUpdater maintains an OAuth2 or OpenID Connect server's metadata up to date and
-performs the necessary validations.
+performs the necessary validations. It also automatically adds the defaults values to
+the response.
 
 Implements the following standards:
 - [RFC8414](https://tools.ietf.org/html/rfc8414) - OAuth 2.0 Authorization Server Metadata
@@ -63,6 +64,9 @@ metadata *becomes* unavailable: `:keep_metadata` will keep the metadata in the c
 OpenID Connect makes the `jwks_uri`, `subject_types_supported` and
 `id_token_signing_alg_values_supported` values mandatory. This option determines against
 which standard to validate: `:oauth2` or `:oidc`. Defaults to `:oauth2`
+
+The `:suffix`, `:on_refresh_failure`, `:url_construction`, `:validation` options shall be used
+unchanged for a given issuer between multiple calls, otherwise an exception will be raised.
 
 ## Loading JWK URIs
 
