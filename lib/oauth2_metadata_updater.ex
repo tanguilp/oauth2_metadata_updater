@@ -11,7 +11,7 @@ defmodule Oauth2MetadataUpdater do
   The following functions accept the following options:
   - `suffix`: the well-know URI suffix as documented in the
   [IANA registry](https://www.iana.org/assignments/well-known-uris/well-known-uris.xhtml).
-  Defaults to `"oauth-authorization-server"`. Many issuers use `"openid-configuration"`
+  Defaults to `"openid-configuration"`
   - `refresh_interval`: the number of seconds to keep metadata in cache before it is fetched
   again. Defaults to `3600` seconds
   - `min_refresh_interval`: the delay before Oauth2MetadataUpdater will try to fetch metadata
@@ -29,7 +29,7 @@ defmodule Oauth2MetadataUpdater do
   - `validation`: in addition to the mandatory metadata values of the OAuth2 specification,
   OpenID Connect makes the `jwks_uri`, `subject_types_supported` and
   `id_token_signing_alg_values_supported` values mandatory. This option determines against
-  which standard to validate: `:oauth2` or `:oidc`. Defaults to `:oauth2`
+  which standard to validate: `:oauth2` or `:oidc`. Defaults to `:oidc`
 
   The `:suffix`, `:on_refresh_failure`, `:url_construction`, `:validation` options shall be used
   unchanged for a given issuer between multiple calls, otherwise an exception will be raised.

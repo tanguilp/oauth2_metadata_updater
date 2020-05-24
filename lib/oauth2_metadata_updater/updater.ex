@@ -12,12 +12,12 @@ defmodule Oauth2MetadataUpdater.Updater do
     |> Enum.into([])
 
   @default_opts [
-    suffix: "oauth-authorization-server",
+    suffix: "openid-configuration",
     refresh_interval: 3600,
     min_refresh_interval: 10,
     on_refresh_failure: :keep_metadata,
     url_construction: :standard,
-    validation: :oauth2
+    validation: :oidc
   ]
 
   @opts_to_hash [:suffix, :on_refresh_failure, :url_construction, :validation]

@@ -12,38 +12,40 @@ defmodule Oauth2MetadataUpdaterTest do
     "jwks_uri" => "https://example.com/certs",
     "response_types_supported" => ["code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token"],
     "scopes_supported" => ["openid", "email", "profile"],
-    "code_challenge_methods_supported" => ["plain", "S256"]
+    "code_challenge_methods_supported" => ["plain", "S256"],
+    "subject_types_supported" => ["public"],
+    "id_token_signing_alg_values_supported" => ["RS256"]
   }
 
   @hdrs [{"content-type", "application/json"}]
 
   setup_all do
     Tesla.Mock.mock_global(fn
-      %{method: :get, url: "https://example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 200, body: @metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://noissuer.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://noissuer.example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 200, body: Map.delete(@metadata, "issuer"), headers: @hdrs}
 
-      %{method: :get, url: "https://invalidissuer.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://invalidissuer.example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://other.issuer.com"), headers: @hdrs}
 
-      %{method: :get, url: "https://example.com/.well-known/oauth-authorization-server/noël"} ->
+      %{method: :get, url: "https://example.com/.well-known/openid-configuration/noël"} ->
         %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://example.com/noël"), headers: @hdrs}
 
-      %{method: :get, url: "https://issuerwithqueryparams.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://issuerwithqueryparams.example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://example.com?a=b"), headers: @hdrs}
 
-      %{method: :get, url: "https://issuerwithfragment.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://issuerwithfragment.example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://example.com#frag"), headers: @hdrs}
 
-      %{method: :get, url: "https://invalidcontenttype.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://invalidcontenttype.example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 200, body: @metadata}
 
-      %{method: :get, url: "https://invalidstatuscode.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://invalidstatuscode.example.com/.well-known/openid-configuration"} ->
         %Tesla.Env{status: 201, body: @metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingazendpoint.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://missingazendpoint.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingazendpoint.example.com")
@@ -51,7 +53,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingazendpointok.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://missingazendpointok.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingazendpointok.example.com")
@@ -60,7 +62,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingtokenendpoint.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://missingtokenendpoint.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingtokenendpoint.example.com")
@@ -68,7 +70,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingtokenendpointok.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://missingtokenendpointok.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingtokenendpointok.example.com")
@@ -77,7 +79,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://invalidjwksuri.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://invalidjwksuri.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://invalidjwksuri.example.com")
@@ -85,7 +87,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingresponsetype.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://missingresponsetype.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingresponsetype.example.com")
@@ -93,7 +95,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://clientsecretjwt.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://clientsecretjwt.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://clientsecretjwt.example.com")
@@ -101,7 +103,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://privatekeyjwt.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://privatekeyjwt.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://privatekeyjwt.example.com")
@@ -109,7 +111,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://tokenendpointnonealg.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://tokenendpointnonealg.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://tokenendpointnonealg.example.com")
@@ -118,7 +120,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://clientsecretjwtrevoc.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://clientsecretjwtrevoc.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://clientsecretjwtrevoc.example.com")
@@ -126,7 +128,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://privatekeyjwtrevoc.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://privatekeyjwtrevoc.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://privatekeyjwtrevoc.example.com")
@@ -134,7 +136,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://revocendpointnonealg.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://revocendpointnonealg.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://revocendpointnonealg.example.com")
@@ -143,7 +145,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://clientsecretjwtintro.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://clientsecretjwtintro.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://clientsecretjwtintro.example.com")
@@ -151,7 +153,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://privatekeyjwtintro.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://privatekeyjwtintro.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://privatekeyjwtintro.example.com")
@@ -159,7 +161,7 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://introendpointnonealg.example.com/.well-known/oauth-authorization-server"} ->
+      %{method: :get, url: "https://introendpointnonealg.example.com/.well-known/openid-configuration"} ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://introendpointnonealg.example.com")
