@@ -81,7 +81,7 @@ defmodule Oauth2MetadataUpdater.Updater do
 
           _ ->
             raise "The following options for the same issuer shall not be changed between " <>
-              "requests: #{@opts_to_hash}"
+              "requests: " <> (@opts_to_hash |> Enum.map(&to_string/1) |> Enum.join(", "))
         end
     end
   end
