@@ -158,7 +158,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     with :ok <- suffix_authorized?(opts[:suffix]),
          {:ok, metadata_uri} <- build_url(issuer, opts),
          :ok <- https_scheme?(metadata_uri),
-         http_client = opts |> tesla_middlewares() |> Tesla.client(),
+         http_client = opts |> tesla_middlewares() |> Tesla.client(tesla_adapter()),
          {:ok, %Tesla.Env{body: claims, status: 200, headers: headers}} <- Tesla.get(http_client, URI.to_string(metadata_uri)),
          :ok <- content_type_application_json?(headers),
          claims <- set_default_values(claims),
@@ -370,4 +370,6 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   defp now(), do: System.system_time(:second)
+
+  defp tesla_adapter(), do: Application.get_env(:tesla, :adapter, Tesla.Adapter.Hackney)
 end
