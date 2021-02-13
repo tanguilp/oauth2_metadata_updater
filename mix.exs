@@ -5,7 +5,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
     [
       app: :oauth2_metadata_updater,
       description: "OAuth2 and OpenID Connect metadata updater for Elixir",
-      version: "1.2.0",
+      version: "1.2.1",
       elixir: "~> 1.5",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -29,13 +29,13 @@ defmodule Oauth2MetadataUpdater.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:content_type, "~> 0.1.0"},
+      {:content_type, "~> 0.1"},
       {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false},
-      {:hackney, "~> 1.0"},
-      {:jason, "~> 1.2"},
-      {:oauth2_utils, "~> 0.1.0"},
-      {:tesla, "~> 1.3.0"}
+      {:hackney, "~> 1.0", only: :dev},
+      {:jason, "~> 1.0"},
+      {:oauth2_utils, "~> 0.1"},
+      {:tesla, "~> 1.0"}
     ]
   end
 
