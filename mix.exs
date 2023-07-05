@@ -5,7 +5,7 @@ defmodule Oauth2MetadataUpdater.Mixfile do
     [
       app: :oauth2_metadata_updater,
       description: "OAuth2 and OpenID Connect metadata updater for Elixir",
-      version: "1.2.1",
+      version: "1.2.2",
       elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
