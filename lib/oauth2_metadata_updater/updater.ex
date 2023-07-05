@@ -5,11 +5,11 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   require Logger
 
-  @allowed_suffixes \
-    File.stream!("lib/oauth2_metadata_updater/well-known-uris-1.csv", [:read])
-    |> Stream.drop(1) #csv header line
-    |> Stream.map(fn(line) -> List.first(String.split(line, ",")) end)
-    |> Enum.into([])
+  @allowed_suffixes File.stream!("lib/oauth2_metadata_updater/well-known-uris-1.csv", [:read])
+                    # csv header line
+                    |> Stream.drop(1)
+                    |> Stream.map(fn line -> List.first(String.split(line, ",")) end)
+                    |> Enum.into([])
 
   @default_opts [
     suffix: "openid-configuration",
@@ -27,13 +27,15 @@ defmodule Oauth2MetadataUpdater.Updater do
     GenServer.start_link(__MODULE__, [], name: :oauth2_metadata_updater)
   end
 
-  @spec get_metadata_value(String.t, String.t, Keyword.t) ::
-  {:ok, any() | nil} |
-  {:error, atom()}
+  @spec get_metadata_value(String.t(), String.t(), Keyword.t()) ::
+          {:ok, any() | nil}
+          | {:error, atom()}
   def get_metadata_value(issuer, claim, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
-    update_res = unless metadata_up_to_date?(issuer, opts), do: GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
+    update_res =
+      unless metadata_up_to_date?(issuer, opts),
+        do: GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
 
     case update_res do
       {:error, e} ->
@@ -51,12 +53,12 @@ defmodule Oauth2MetadataUpdater.Updater do
 
           _ ->
             raise "The following options for the same issuer shall not be changed between " <>
-              "requests: " <> (@opts_to_hash |> Enum.map(&to_string/1) |> Enum.join(", "))
+                    "requests: " <> (@opts_to_hash |> Enum.map(&to_string/1) |> Enum.join(", "))
         end
     end
   end
 
-  @spec get_metadata(String.t, Keyword.t) :: {:ok, map() | nil} | {:error, atom()}
+  @spec get_metadata(String.t(), Keyword.t()) :: {:ok, map() | nil} | {:error, atom()}
   def get_metadata(issuer, opts) do
     opts = Keyword.merge(@default_opts, opts)
 
@@ -81,7 +83,7 @@ defmodule Oauth2MetadataUpdater.Updater do
 
           _ ->
             raise "The following options for the same issuer shall not be changed between " <>
-              "requests: " <> (@opts_to_hash |> Enum.map(&to_string/1) |> Enum.join(", "))
+                    "requests: " <> (@opts_to_hash |> Enum.map(&to_string/1) |> Enum.join(", "))
         end
     end
   end
@@ -94,7 +96,8 @@ defmodule Oauth2MetadataUpdater.Updater do
       [{_issuer, last_update_time, _metadata, _opts_thumbprint}] ->
         if now() - last_update_time < opts[:refresh_interval], do: true, else: false
 
-      _ -> false
+      _ ->
+        false
     end
   end
 
@@ -108,8 +111,12 @@ defmodule Oauth2MetadataUpdater.Updater do
     :ets.new(:oauth2_metadata, [:set, :named_table, :protected, read_concurrency: true])
 
     unless is_nil(Application.get_env(:oauth2_metadata_updater, :preload)) do
-      Enum.each(Application.get_env(:oauth2_metadata_updater, :preload),
-                fn {issuer, opts} -> GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts}) end)
+      Enum.each(
+        Application.get_env(:oauth2_metadata_updater, :preload),
+        fn {issuer, opts} ->
+          GenServer.call(:oauth2_metadata_updater, {:update_metadata, issuer, opts})
+        end
+      )
     end
 
     {:ok, %{}}
@@ -135,31 +142,38 @@ defmodule Oauth2MetadataUpdater.Updater do
           on_refresh_failure = opts[:on_refresh_failure]
 
           case :ets.lookup(:oauth2_metadata, issuer) do
-            [{_issuer, _last_update_time, metadata, _opts_thumbprint}] when not is_nil metadata
-              and on_refresh_failure == :keep_metadata ->
-            :ets.update_element(:oauth2_metadata, issuer, {2, now()})
+            [{_issuer, _last_update_time, metadata, _opts_thumbprint}]
+            when not is_nil(
+                   metadata and
+                       on_refresh_failure == :keep_metadata
+                 ) ->
+              :ets.update_element(:oauth2_metadata, issuer, {2, now()})
 
-            Logger.warning("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
+              Logger.warning(
+                "#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached"
+              )
 
-            {:reply, :ok, state}
+              {:reply, :ok, state}
 
-          _ ->
-            :ets.insert(:oauth2_metadata, {issuer, now(), {:error, error}, opts_thumbprint(opts)})
+            _ ->
+              :ets.insert(
+                :oauth2_metadata,
+                {issuer, now(), {:error, error}, opts_thumbprint(opts)}
+              )
 
-            {:reply, {:error, error}, state}
+              {:reply, {:error, error}, state}
           end
       end
     end
   end
-
-
 
   defp request_and_process_metadata(issuer, opts) do
     with :ok <- suffix_authorized?(opts[:suffix]),
          {:ok, metadata_uri} <- build_url(issuer, opts),
          :ok <- https_scheme?(metadata_uri),
          http_client = opts |> tesla_middlewares() |> Tesla.client(tesla_adapter()),
-         {:ok, %Tesla.Env{body: claims, status: 200, headers: headers}} <- Tesla.get(http_client, URI.to_string(metadata_uri)),
+         {:ok, %Tesla.Env{body: claims, status: 200, headers: headers}} <-
+           Tesla.get(http_client, URI.to_string(metadata_uri)),
          :ok <- content_type_application_json?(headers),
          claims <- set_default_values(claims),
          :ok <- issuer_valid?(issuer, claims),
@@ -173,7 +187,7 @@ defmodule Oauth2MetadataUpdater.Updater do
          :ok <- has_revocation_endpoint_auth_signing_alg_values_supported?(claims),
          :ok <- has_introspection_endpoint_auth_signing_alg_values_supported?(claims),
          :ok <- oidc_has_id_token_signing_alg_values_supported?(claims, opts[:validation]) do
-           claims
+      claims
     else
       {:ok, %Tesla.Env{}} ->
         {:error, :invalid_http_response_code}
@@ -200,6 +214,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     case opts[:url_construction] do
       :standard ->
         {:ok, %{issuer_uri | path: "/.well-known/" <> opts[:suffix] <> path}}
+
       :non_standard_append ->
         {:ok, %{issuer_uri | path: path <> "/.well-known/" <> opts[:suffix]}}
     end
@@ -245,7 +260,9 @@ defmodule Oauth2MetadataUpdater.Updater do
 
   defp has_authorization_endpoint?(claims) do
     if not Map.has_key?(claims, "authorization_endpoint") and
-      Enum.any?(claims["grant_types_supported"], fn gt -> OAuth2Utils.uses_authorization_endpoint?(gt) end) do
+         Enum.any?(claims["grant_types_supported"], fn gt ->
+           OAuth2Utils.uses_authorization_endpoint?(gt)
+         end) do
       {:error, :missing_authorization_endpoint}
     else
       :ok
@@ -265,10 +282,12 @@ defmodule Oauth2MetadataUpdater.Updater do
   defp oidc_has_jwks_uri?(_, :oidc), do: {:error, :missing_jwks_uri}
 
   defp jwks_uri_valid?(%{"jwks_uri" => nil}), do: :ok
+
   defp jwks_uri_valid?(%{"jwks_uri" => jwks_uri}) when is_binary(jwks_uri) do
     case https_scheme?(URI.parse(jwks_uri)) do
       :ok ->
         :ok
+
       {:error, _} ->
         {:error, :jwks_invalid_uri_scheme}
     end
@@ -283,6 +302,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   defp oidc_has_subject_types_supported?(_, :oauth2), do: :ok
+
   defp oidc_has_subject_types_supported?(claims, :oidc) do
     if is_list(claims["subject_types_supported"]) do
       :ok
@@ -311,7 +331,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   defp has_revocation_endpoint_auth_signing_alg_values_supported?(claims) do
     if "private_key_jwt" in claims["revocation_endpoint_auth_methods_supported"] or
          "client_secret_jwt" in claims["revocation_endpoint_auth_methods_supported"] do
-      if is_list(claims["revocation_endpoint_auth_signing_alg_values_supported"]) do 
+      if is_list(claims["revocation_endpoint_auth_signing_alg_values_supported"]) do
         if "none" not in claims["revocation_endpoint_auth_signing_alg_values_supported"] do
           :ok
         else
@@ -329,7 +349,7 @@ defmodule Oauth2MetadataUpdater.Updater do
     if is_list(claims["introspection_endpoint_auth_methods_supported"]) and
          ("private_key_jwt" in claims["introspection_endpoint_auth_methods_supported"] or
             "client_secret_jwt" in claims["introspection_endpoint_auth_methods_supported"]) do
-      if is_list(claims["introspection_endpoint_auth_signing_alg_values_supported"]) do 
+      if is_list(claims["introspection_endpoint_auth_signing_alg_values_supported"]) do
         if "none" not in claims["introspection_endpoint_auth_signing_alg_values_supported"] do
           :ok
         else
@@ -344,6 +364,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   defp oidc_has_id_token_signing_alg_values_supported?(_, :oauth2), do: :ok
+
   defp oidc_has_id_token_signing_alg_values_supported?(claims, :oidc) do
     if is_list(claims["id_token_signing_alg_values_supported"]) do
       if "RS256" in claims["id_token_signing_alg_values_supported"] do
@@ -357,9 +378,9 @@ defmodule Oauth2MetadataUpdater.Updater do
   end
 
   defp tesla_middlewares(opts) do
-    Application.get_env(:oauth2_metadata_updater, :tesla_middlewares, [])
-    ++ (opts[:tesla_middlewares] || [])
-    ++ [Tesla.Middleware.JSON]
+    Application.get_env(:oauth2_metadata_updater, :tesla_middlewares, []) ++
+      (opts[:tesla_middlewares] || []) ++
+      [Tesla.Middleware.JSON]
   end
 
   defp opts_thumbprint(opts) do

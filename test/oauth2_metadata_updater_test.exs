@@ -10,7 +10,15 @@ defmodule Oauth2MetadataUpdaterTest do
     "userinfo_endpoint" => "https://example.com/userinfo",
     "revocation_endpoint" => "https://example.com/revoke",
     "jwks_uri" => "https://example.com/certs",
-    "response_types_supported" => ["code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token"],
+    "response_types_supported" => [
+      "code",
+      "token",
+      "id_token",
+      "code token",
+      "code id_token",
+      "token id_token",
+      "code token id_token"
+    ],
     "scopes_supported" => ["openid", "email", "profile"],
     "code_challenge_methods_supported" => ["plain", "S256"],
     "subject_types_supported" => ["public"],
@@ -28,24 +36,55 @@ defmodule Oauth2MetadataUpdaterTest do
         %Tesla.Env{status: 200, body: Map.delete(@metadata, "issuer"), headers: @hdrs}
 
       %{method: :get, url: "https://invalidissuer.example.com/.well-known/openid-configuration"} ->
-        %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://other.issuer.com"), headers: @hdrs}
+        %Tesla.Env{
+          status: 200,
+          body: Map.put(@metadata, "issuer", "https://other.issuer.com"),
+          headers: @hdrs
+        }
 
       %{method: :get, url: "https://example.com/.well-known/openid-configuration/noël"} ->
-        %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://example.com/noël"), headers: @hdrs}
+        %Tesla.Env{
+          status: 200,
+          body: Map.put(@metadata, "issuer", "https://example.com/noël"),
+          headers: @hdrs
+        }
 
-      %{method: :get, url: "https://issuerwithqueryparams.example.com/.well-known/openid-configuration"} ->
-        %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://example.com?a=b"), headers: @hdrs}
+      %{
+        method: :get,
+        url: "https://issuerwithqueryparams.example.com/.well-known/openid-configuration"
+      } ->
+        %Tesla.Env{
+          status: 200,
+          body: Map.put(@metadata, "issuer", "https://example.com?a=b"),
+          headers: @hdrs
+        }
 
-      %{method: :get, url: "https://issuerwithfragment.example.com/.well-known/openid-configuration"} ->
-        %Tesla.Env{status: 200, body: Map.put(@metadata, "issuer", "https://example.com#frag"), headers: @hdrs}
+      %{
+        method: :get,
+        url: "https://issuerwithfragment.example.com/.well-known/openid-configuration"
+      } ->
+        %Tesla.Env{
+          status: 200,
+          body: Map.put(@metadata, "issuer", "https://example.com#frag"),
+          headers: @hdrs
+        }
 
-      %{method: :get, url: "https://invalidcontenttype.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://invalidcontenttype.example.com/.well-known/openid-configuration"
+      } ->
         %Tesla.Env{status: 200, body: @metadata}
 
-      %{method: :get, url: "https://invalidstatuscode.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://invalidstatuscode.example.com/.well-known/openid-configuration"
+      } ->
         %Tesla.Env{status: 201, body: @metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingazendpoint.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://missingazendpoint.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingazendpoint.example.com")
@@ -53,16 +92,27 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingazendpointok.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://missingazendpointok.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingazendpointok.example.com")
-          |> Map.put("grant_types_supported", ["password", "client_credentials", "refresh_token", "urn:ietf:params:oauth:grant-type:jwt-bearer"])
+          |> Map.put("grant_types_supported", [
+            "password",
+            "client_credentials",
+            "refresh_token",
+            "urn:ietf:params:oauth:grant-type:jwt-bearer"
+          ])
           |> Map.delete("authorization_endpoint")
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingtokenendpoint.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://missingtokenendpoint.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingtokenendpoint.example.com")
@@ -70,7 +120,10 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingtokenendpointok.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://missingtokenendpointok.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingtokenendpointok.example.com")
@@ -87,7 +140,10 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://missingresponsetype.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://missingresponsetype.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://missingresponsetype.example.com")
@@ -111,16 +167,26 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://tokenendpointnonealg.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://tokenendpointnonealg.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://tokenendpointnonealg.example.com")
           |> Map.put("token_endpoint_auth_methods_supported", ["private_key_jwt"])
-          |> Map.put("token_endpoint_auth_signing_alg_values_supported", ["RS256", "none", "ES256"])
+          |> Map.put("token_endpoint_auth_signing_alg_values_supported", [
+            "RS256",
+            "none",
+            "ES256"
+          ])
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://clientsecretjwtrevoc.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://clientsecretjwtrevoc.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://clientsecretjwtrevoc.example.com")
@@ -128,7 +194,10 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://privatekeyjwtrevoc.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://privatekeyjwtrevoc.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://privatekeyjwtrevoc.example.com")
@@ -136,16 +205,26 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://revocendpointnonealg.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://revocendpointnonealg.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://revocendpointnonealg.example.com")
           |> Map.put("revocation_endpoint_auth_methods_supported", ["private_key_jwt"])
-          |> Map.put("revocation_endpoint_auth_signing_alg_values_supported", ["RS256", "none", "ES256"])
+          |> Map.put("revocation_endpoint_auth_signing_alg_values_supported", [
+            "RS256",
+            "none",
+            "ES256"
+          ])
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://clientsecretjwtintro.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://clientsecretjwtintro.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://clientsecretjwtintro.example.com")
@@ -153,7 +232,10 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://privatekeyjwtintro.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://privatekeyjwtintro.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://privatekeyjwtintro.example.com")
@@ -161,12 +243,19 @@ defmodule Oauth2MetadataUpdaterTest do
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
 
-      %{method: :get, url: "https://introendpointnonealg.example.com/.well-known/openid-configuration"} ->
+      %{
+        method: :get,
+        url: "https://introendpointnonealg.example.com/.well-known/openid-configuration"
+      } ->
         metadata =
           @metadata
           |> Map.put("issuer", "https://introendpointnonealg.example.com")
           |> Map.put("introspection_endpoint_auth_methods_supported", ["private_key_jwt"])
-          |> Map.put("introspection_endpoint_auth_signing_alg_values_supported", ["RS256", "none", "ES256"])
+          |> Map.put("introspection_endpoint_auth_signing_alg_values_supported", [
+            "RS256",
+            "none",
+            "ES256"
+          ])
 
         %Tesla.Env{status: 200, body: metadata, headers: @hdrs}
     end)
@@ -208,19 +297,23 @@ defmodule Oauth2MetadataUpdaterTest do
   end
 
   test "The well-known suffix must be registered at the IANA registry" do
-    assert {:error, _} = get_metadata("https://something.example.com", suffix: "unregistered-suffix")
+    assert {:error, _} =
+             get_metadata("https://something.example.com", suffix: "unregistered-suffix")
   end
 
   test "Response content type must be application/json" do
-    assert {:error, :invalid_response_content_type} == get_metadata("https://invalidcontenttype.example.com")
+    assert {:error, :invalid_response_content_type} ==
+             get_metadata("https://invalidcontenttype.example.com")
   end
 
   test "Response status must be 200" do
-    assert {:error, :invalid_http_response_code} == get_metadata("https://invalidstatuscode.example.com")
+    assert {:error, :invalid_http_response_code} ==
+             get_metadata("https://invalidstatuscode.example.com")
   end
 
   test "authorization_endpoint is mandatory unless no grant type uses it" do
-    assert {:error, :missing_authorization_endpoint} == get_metadata("https://missingazendpoint.example.com")
+    assert {:error, :missing_authorization_endpoint} ==
+             get_metadata("https://missingazendpoint.example.com")
   end
 
   test "authorization_endpoint not necessary when no grant type uses it" do
@@ -228,7 +321,8 @@ defmodule Oauth2MetadataUpdaterTest do
   end
 
   test "Token endpoint required when grant types other than implicit" do
-    assert {:error, :missing_token_endpoint} == get_metadata("https://missingtokenendpoint.example.com")
+    assert {:error, :missing_token_endpoint} ==
+             get_metadata("https://missingtokenendpoint.example.com")
   end
 
   test "Token endpoint not required when only implicit grant type is supported" do
@@ -236,38 +330,52 @@ defmodule Oauth2MetadataUpdaterTest do
   end
 
   test "JWKS URI must be HTTPS" do
-    assert {:error, :jwks_invalid_uri_scheme} == get_metadata("https://invalidjwksuri.example.com")
+    assert {:error, :jwks_invalid_uri_scheme} ==
+             get_metadata("https://invalidjwksuri.example.com")
   end
 
-
   test "response_types_supported is mandatory" do
-    assert {:error, :missing_response_types_supported} == get_metadata("https://missingresponsetype.example.com")
+    assert {:error, :missing_response_types_supported} ==
+             get_metadata("https://missingresponsetype.example.com")
   end
 
   test "token_endpoint_auth_signing_alg_values_supported mandatory if private_key_jwt or client_secret_jwt used" do
-    assert {:error, :missing_token_endpoint_auth_signing_alg_values_supported} == get_metadata("https://clientsecretjwt.example.com")
-    assert {:error, :missing_token_endpoint_auth_signing_alg_values_supported} == get_metadata("https://privatekeyjwt.example.com")
+    assert {:error, :missing_token_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://clientsecretjwt.example.com")
+
+    assert {:error, :missing_token_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://privatekeyjwt.example.com")
   end
 
   test "token_endpoint_auth_signing_alg_values_supported shall not use value `none`" do
-    assert {:error, :none_value_forbidden_token_endpoint_auth_signing_values_supported} == get_metadata("https://tokenendpointnonealg.example.com")
+    assert {:error, :none_value_forbidden_token_endpoint_auth_signing_values_supported} ==
+             get_metadata("https://tokenendpointnonealg.example.com")
   end
 
   test "revocation_endpoint_auth_signing_alg_values_supported mandatory if private_key_jwt or client_secret_jwt used" do
-    assert {:error, :missing_revocation_endpoint_auth_signing_alg_values_supported} == get_metadata("https://clientsecretjwtrevoc.example.com")
-    assert {:error, :missing_revocation_endpoint_auth_signing_alg_values_supported} == get_metadata("https://privatekeyjwtrevoc.example.com")
+    assert {:error, :missing_revocation_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://clientsecretjwtrevoc.example.com")
+
+    assert {:error, :missing_revocation_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://privatekeyjwtrevoc.example.com")
   end
 
   test "revocation_endpoint_auth_signing_alg_values_supported shall not use value `none`" do
-    assert {:error, :none_value_forbidden_revocation_endpoint_auth_signing_alg_values_supported} == get_metadata("https://revocendpointnonealg.example.com")
+    assert {:error, :none_value_forbidden_revocation_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://revocendpointnonealg.example.com")
   end
 
   test "introspection mandatory if private_key_jwt or client_secret_jwt used" do
-    assert {:error, :missing_introspection_endpoint_auth_signing_alg_values_supported} == get_metadata("https://clientsecretjwtintro.example.com")
-    assert {:error, :missing_introspection_endpoint_auth_signing_alg_values_supported} == get_metadata("https://privatekeyjwtintro.example.com")
+    assert {:error, :missing_introspection_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://clientsecretjwtintro.example.com")
+
+    assert {:error, :missing_introspection_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://privatekeyjwtintro.example.com")
   end
 
   test "introspection shall not use value `none`" do
-    assert {:error, :none_value_forbidden_introspection_endpoint_auth_signing_alg_values_supported} == get_metadata("https://introendpointnonealg.example.com")
+    assert {:error,
+            :none_value_forbidden_introspection_endpoint_auth_signing_alg_values_supported} ==
+             get_metadata("https://introendpointnonealg.example.com")
   end
 end

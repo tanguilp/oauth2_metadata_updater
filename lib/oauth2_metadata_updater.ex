@@ -113,5 +113,5 @@ defmodule Oauth2MetadataUpdater do
      }}
   ```
   """
-  defdelegate get_metadata(issuer, opts \\  []), to: Oauth2MetadataUpdater.Updater
+  defdelegate get_metadata(issuer, opts \\ []), to: Oauth2MetadataUpdater.Updater
 end
