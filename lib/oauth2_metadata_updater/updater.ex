@@ -23,7 +23,7 @@ defmodule Oauth2MetadataUpdater.Updater do
   @opts_to_hash [:suffix, :on_refresh_failure, :url_construction, :validation]
 
   # client API
-  def start_link() do
+  def start_link(_) do
     GenServer.start_link(__MODULE__, [], name: :oauth2_metadata_updater)
   end
 
@@ -139,7 +139,7 @@ defmodule Oauth2MetadataUpdater.Updater do
               and on_refresh_failure == :keep_metadata ->
             :ets.update_element(:oauth2_metadata, issuer, {2, now()})
 
-            Logger.warn("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
+            Logger.warning("#{__MODULE__}: metadata for issuer #{issuer} can no longer be reached")
 
             {:reply, :ok, state}
 

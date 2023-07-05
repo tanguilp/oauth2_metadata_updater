@@ -41,9 +41,7 @@ defmodule Oauth2MetadataUpdater do
   @doc false
 
   def start(_type, _args) do
-    import Supervisor.Spec
-
-    children = [worker(Oauth2MetadataUpdater.Updater, [])]
+    children = [Oauth2MetadataUpdater.Updater]
 
     {:ok, _} =
       Supervisor.start_link(children, strategy: :one_for_one, name: :oauth2_metadata_updater_sup)
